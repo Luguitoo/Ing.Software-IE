@@ -13,3 +13,19 @@
 .main-container .row .col-md-8{
     text-align: center;
 }
+.main-container .row .col-md-3{
+    text-align: center;
+    padding: 9px;
+}
+
+.small-file-input {
+    width: 170px; 
+    height: 45px;
+
+
+  }
+.bold_text{
+    font-weight: bold;
+    padding-left: 60px;
+    margin: 5px;
+}

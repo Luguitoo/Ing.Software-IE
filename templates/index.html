@@ -29,41 +29,55 @@
         <div class="container">
             
             <div class="row">
-                <div class="col-md-8">
+                <div class="col-md-5">
                     <h1 class="title">Indice de Eficiencia - CyT</h1>
                 </div>
-                <div class="col-md-2">
+                <div class="col-md-1">
                     <label for="desde" class="form-label">Desde:</label>
                     <input type="text" class="form-control" id="desde">
                 </div>
-                <div class="col-md-2">
+                <div class="col-md-1">
                     <label for="hasta" class="form-label">Hasta:</label>
                     <input type="text" class="form-control" id="hasta">
               </div>
+              <div class="col-md-3">
+                <form method="POST" action="/download_template">
+                  <input type="submit" name="submit" value="Descargar modelo excel" class="btn btn-secondary">
+                </form>
+              </div>
+              <div class="col-md-2">
+              </div>
             </div>
         </div>
-        <form>
         <div class="row">
          <div class="col-md-2">
             <h1>Cargar alumnos</h1>
             <label for="codigo" class="form-label">Matricula:</label>
             <input type="text" class="form-control" id="codigo">
             <br>
-                <button type="submit" class="btn btn-primary">Cargar <i class="bi bi-box-arrow-in-right"></i></button>
-                <span class="form-label">o</span>
-                <button type="button" class="btn btn-secondary">Importar</button>
+            <div class="d-flex align-items-center">
+              <button type="submit" class="btn btn-primary">Cargar <i class="bi bi-box-arrow-in-right"></i></button>
+              <p class="bold_text"> O IMPORTAR: </p>
+            </div>
          </div>
          <div class="col-md-2">
             <h1 class="invisible">Alumnos</h1>
             <label for="nombre" class="form-label">Nombre:</label>
             <input type="text" class="form-control" id="nombre">
+            <br>
+            <form method="POST" action="/read_excel"  enctype="multipart/form-data">
+              <input type="file" name="archivo" id="fileInput" class="btn btn-secondary small-file-input">
+              <button id="uploadButton" class="btn btn-primary">Subir</button>
+            </form>
+            <br>
          </div>
+         <!--Table-->
          <div class="col-md-8">
             <h1>Alumnos cargados</h1>
             <table class="table table-hover">
                 <thead>
                     <tr>
-                        <th scope="col"> </th>
+                        <th scope="col"></th>
                         <th scope="col">Matricula</th>
                         <th scope="col">Nombre y Apellido</th>
                         <th scope="col">Notas</th>
@@ -79,15 +93,12 @@
                 </tbody>
         </table>
                 </div>
-
-        <div class="col-md-2">
-        </div>
-        </div>
-        </form>
+        <!--End Table-->        
       </div>
-
     <!--End main content-->
 </body>
     <!--Boostrap JS-->
     <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0-alpha3/dist/js/bootstrap.bundle.min.js"></script>
+    <!--JS-->
+    <script src=""></script>
 </html>

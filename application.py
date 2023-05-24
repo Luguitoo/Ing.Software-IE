@@ -1,7 +1,6 @@
 from flask import Flask, url_for, redirect, render_template, send_file, request
 from config import DevConfig
 import sqlite3
-import pandas as pd
 
 #Excel
 from openpyxl import load_workbook

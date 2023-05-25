@@ -67,7 +67,7 @@ def read_excel():
     json_data = jsonify(data)
     return json_data
 
-##Leer notas del excel
+##Leer notas del excel, terminado lugo
 @app.route('/read_notas', methods=['POST'])
 def read_notas():
     if "archivo" not in request.files:

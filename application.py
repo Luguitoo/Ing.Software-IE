@@ -116,7 +116,7 @@ def read_notas():
                 'mat': mat,
                 'cod': cod,
                 'opo': opo,
-                'nota': nota,
+                'nota': nota.split(':')[0].strip(),
                 'act': act,
                 'fec': fec
             })

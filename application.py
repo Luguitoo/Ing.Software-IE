@@ -2,12 +2,20 @@ from flask import Flask, url_for, redirect, render_template, send_file, request
 from config import DevConfig
 import sqlite3
 import os
+from datetime import datetime
 #Excel
 from openpyxl import load_workbook
 from openpyxl.styles import PatternFill
 import pandas as pd
 #Json
 from flask import jsonify
+#database con sqlalchemy
+from database import models
+from sqlalchemy import text
+from database.conexion import SessionLocal, engine
+from database.conexion import SessionLocal
+models.Base.metadata.create_all(bind=engine)
+
 
 application = app = Flask(__name__)
 
@@ -16,6 +24,13 @@ dbtest = sqlite3.connect('NombreDeLaDB.db')
 ##Vistas
 @app.route('/')
 def index():
+    session = SessionLocal()
+    #outs = session.query(models.Historial).all()
+    #ejemplo de como usar codigo sql con sqlalchemy, tambien funciona con insert, delete, etc
+    outs = session.execute(text('select * from historial'))
+    for i in outs:
+        print(i.matricula, ' - ', i.nota)
+    session.close()
     return render_template('index.html')
 
 @app.route('/notas')
@@ -70,6 +85,7 @@ def read_excel():
 ##Leer notas del excel, terminado lugo
 @app.route('/read_notas', methods=['POST'])
 def read_notas():
+    session = SessionLocal()
     if "archivo" not in request.files:
         print("No se envió ningún archivo")
         return "No se envió ningún archivo"
@@ -93,6 +109,12 @@ def read_notas():
     nomb = ws['C2'].value
     matr = ws['C3'].value
     print(f"Alumno: {nomb}, matricula: {matr}")
+    #elimina de ls bd todos las calificaciones anteriores
+    historial = session.query(models.Historial).filter(models.Historial.matricula == matr).first()
+    if historial != None:
+        session.delete(historial)
+        #flush tipo elimina pero no elimina de la db hasta hacer commit
+        session.flush()
     inicio = 4
     cont = 0
     b = True
@@ -120,10 +142,19 @@ def read_notas():
                 'act': act,
                 'fec': fec
             })
+            #carga la nueva calificación a bd
+            date = datetime.strptime(fec, '%d/%m/%Y')
+            newhistorial = models.Historial(matricula = matr, materia_codigo = cod, nota = nota, fecha_examen = date)
+            session.add(newhistorial)
+            session.flush()
         inicio += 1
     # Convertir a JSON
     json_data = jsonify(data)
     os.remove('./static/resources/{a}.xlsx'.format(a = archivo.filename)) #elimina el excel del sistema
+    print(json_data)
+    #coomit de la bd y cierre de sesión
+    session.commit()
+    session.close()
     return json_data
 if __name__=='__main__':
     app.run(debug = True, port= 8000)

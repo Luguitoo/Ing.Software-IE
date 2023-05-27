@@ -28,8 +28,9 @@ def index():
     #outs = session.query(models.Historial).all()
     #ejemplo de como usar codigo sql con sqlalchemy, tambien funciona con insert, delete, etc
     outs = session.execute(text('select * from historial'))
-    for i in outs:
-        print(i.matricula, ' - ', i.nota)
+    print(outs.fetchall())
+    """for i in outs:
+        print(i.matricula, ' - ', i.nota)"""
     session.close()
     return render_template('index.html')
 
@@ -110,6 +111,7 @@ def read_notas():
     matr = ws['C3'].value
     print(f"Alumno: {nomb}, matricula: {matr}")
     #elimina de ls bd todos las calificaciones anteriores
+    #capaz update sea mejor
     historial = session.query(models.Historial).filter(models.Historial.matricula == matr).first()
     if historial != None:
         session.delete(historial)

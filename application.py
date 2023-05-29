@@ -192,16 +192,44 @@ def read_notas():
 
 
 #Ver historial de asignaturas del alumno
+import re
+def extraer_numero(string):
+    numero = re.match(r'^\d+', string)
+    if numero:
+        return int(numero.group())
+    else:
+        return 0
 @app.route('/historial/<mat>')
 def historial(mat:str):
     session = SessionLocal()
     semestres =  session.query(func.count(models.Semestre.semestre_id)).first()
-    materias = session.query(models.Materias.materia_codigo, models.Materias.materia_descrip, models.Semestre.semestre_id, models.Historial.nota).join(models.Semestre).outerjoin(models.Historial).join(models.Alumnos).filter(models.Alumnos.matricula==mat.upper()).order_by(models.Semestre.semestre_id).all()
-    for i in materias:
-        print(i)
-    print(len(materias))
+    #materias = session.execute(text(f"select historial.materia_codigo, historial.nota, materia.materia_descrip from historial, materias"))
+    #materias = session.query(models.Historial.materia_codigo ,models.Historial.nota, models.Materias.materia_descrip, ).outerjoin(models.Materias).filter(models.Historial.matricula==mat.upper()).order_by(models.Semestre.semestre_id).all()
+    materias = session.query(models.Materias.materia_codigo, models.Materias.materia_descrip, models.Semestre.semestre_id).join(models.Semestre).order_by(models.Semestre.semestre_id).all()
+    historial = []
+    for materia in materias:
+        calif = session.query(models.Historial).filter(models.Historial.matricula==mat.upper(), models.Historial.materia_codigo == materia[0]).all()
+        estado = {
+            'codigo': materia[0],
+            'descripcion': materia[1],
+            'semestre': materia[2],
+        }
+        print(calif)
+        if(calif == []):
+            estado['estado'] = 'Sin registros'
+        elif len(calif) >= 1:
+            may =extraer_numero(str(calif[0].nota))
+            for i in range(len(calif)):
+                nota =  extraer_numero(str(calif[i].nota))
+                if nota > may:
+                    may = nota
+            if may > 1:
+                estado['estado'] = 'Aprovado'
+            else:
+                estado['estado'] = 'No aprovado'
+        historial.append(estado)
     session.close()
-    return render_template('historial.html', materias = materias)
+    return render_template('historial.html', historial = historial)
 
 
 if __name__=='__main__':

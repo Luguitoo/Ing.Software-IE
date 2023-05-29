@@ -15,9 +15,9 @@ from database import models
 from sqlalchemy import text
 from database.conexion import engine
 from database.conexion import SessionLocal
+from sqlalchemy import func
 #formulas
 from formulas import *
-
 models.Base.metadata.create_all(bind=engine)
 
 application = app = Flask(__name__)
@@ -188,6 +188,19 @@ def read_notas():
     session.commit()
     session.close()
     return json_data
+
+
+
+
+#Ver historial de asignaturas del alumno
+@app.route('/historial')
+def historial():
+    session = SessionLocal()
+    semestres =  session.query(func.count(models.Semestre.semestre_id)).first()
+    print(semestres)
+    session.close()
+    return render_template('historial.html')
+
 
 if __name__=='__main__':
     app.run(debug = True, port= 8000)

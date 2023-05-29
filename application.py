@@ -1,193 +1,128 @@
-﻿from ast import Delete
-from flask import Flask, url_for, redirect, render_template, send_file, request
+﻿from flask import Flask, url_for, redirect, render_template, send_file, request
 from config import DevConfig
-import sqlite3
-import os
-from datetime import datetime
+from database.conexion import *
+from database.models import *
+
 #Excel
 from openpyxl import load_workbook
 from openpyxl.styles import PatternFill
-import pandas as pd
-#Json
 from flask import jsonify
-#database con sqlalchemy
-from database import models
-from sqlalchemy import text
-from database.conexion import engine
-from database.conexion import SessionLocal
-#formulas
-from formulas import *
-
-models.Base.metadata.create_all(bind=engine)
 
 application = app = Flask(__name__)
-
 app.config.from_object(DevConfig)
-dbtest = sqlite3.connect('NombreDeLaDB.db')
 
-##Vistas
+#Variables que uso de forma temporal ya que despues se va a guardar en la db
+alumnos=[] #para la cargar de alumnos (ver /loadSt)
+data = []  #para la carga del historial de materias (ver /histAl)
+
 @app.route('/')
 def index():
-    session = SessionLocal()
-    models.insert_estados(session) #Crea los estados en la base de datos
-    models.insert_test_data(session) #Inserta datos de prueba en la base de datos
-    #outs = session.query(models.Historial).all()
-    #ejemplo de como usar codigo sql con sqlalchemy, tambien funciona con insert, delete, etc
+    return render_template('index.html', data=alumnos)
 
-    #for i in range(1,8):
-    #    print(tasa_promocion_semestral(1, i, session))
-
-    """for i in outs:
-        print(i.matricula, ' - ', i.nota)"""
-
-    session.close()
-    return render_template('index.html')
-
-@app.route('/notas')
-def notas():
-    return render_template('notas.html')
-
-##Procesos
-##Ruta de descarga del modelo del excel, terminado Lugo
+##Ruta de descarga del modelo del excel
 @app.route('/download_template', methods = ['GET', 'POST'])
 def download_template():
     if request.method == "POST":
         return send_file('./static/resources/IE-CyT.xlsx', as_attachment=True)
-    
-##Leer excel de alumnos y carga en el front, terminado Lugo
-@app.route('/read_excel', methods=['POST']) 
-def read_excel():
-    session = SessionLocal()
-    archivo = request.files['archivo']
-    inic = request.form['desde']
-    fin = request.form['hasta']
-    if "archivo" not in request.files:
-        print("No se envió ningún archivo")
-        return "No se envió ningún archivo"
-    elif archivo.filename == "":
-        print("No se seleccionó ningún archivo")
-        return "No se seleccionó ningún archivo"
-    
-    #Cargamos el archivo
-    wb = load_workbook(archivo)
-    ws = wb["Hoja1"]
-    inicio = 1
-    b = True
-    data = []  # Lista para almacenar los datos
 
-    #Carga la cohorte si no existe
-    id_cohor = session.query(models.Cohortes.cohorte_id).filter(models.Cohortes.cohorte_inicio == inic).scalar()
-    if not id_cohor: #Falta alguna advertencia si es que ya existe la cohorte
-        newcohorte = models.Cohortes(cohorte_inicio = inic,cohorte_fin = fin)
-        session.add(newcohorte)
-        session.flush()
-        session.commit()
+@app.route('/read_excel/<id>', methods=['GET','POST'])
+def read_excel(id):
+    if request.method == 'POST':
+        archivo = request.files['archivo']
+        if "archivo" not in request.files:
+            print("No se envió ningún archivo")
+            return "No se envió ningún archivo"
+        elif archivo.filename == "":
+            print("No se seleccionó ningún archivo")
+            return "No se seleccionó ningún archivo"
 
-    print('N, Matr, Name')
-    while b:
-        if not ws['A{a}'.format(a=str(inicio + 1))].value:
-            b = False
-        else:
-            print(ws['A{a}'.format(a = str(inicio + 1))].value, ws['B{a}'.format(a = str(inicio + 1))].value, ws['D{a}'.format(a = str(inicio + 1))].value)
-            num = ws['A{a}'.format(a=str(inicio + 1))].value
-            matricula = ws['B{a}'.format(a=str(inicio + 1))].value
-            nombre = ws['D{a}'.format(a=str(inicio + 1))].value
-
-            data.append({
-                'num': num,
-                'matricula': matricula,
-                'nombre': nombre,
-            })
-            
-            inicio += 1
-            matric = session.query(models.Alumnos.matricula).filter(models.Alumnos.matricula == matricula).scalar()
-            if not matric: #Falta alguna advertencia si es que ya existe el alumno
-                newalumno = models.Alumnos(matricula = matricula, alumno_nombre = nombre, cohorte_id = id_cohor[0])
-                session.add(newalumno)
-                session.flush()
-    session.commit()
-    session.close()
-
-    # Convertir a JSON
-    json_data = jsonify(data)
-    return json_data
-
-##Leer notas del excel, terminado lugo
-@app.route('/read_notas', methods=['POST'])
-def read_notas():
-    session = SessionLocal()
-    if "archivo" not in request.files:
-        print("No se envió ningún archivo")
-        return "No se envió ningún archivo"
-    
-    archivo = request.files['archivo']
-    if archivo.filename == "":
-        print("No se seleccionó ningún archivo")
-        return "No se seleccionó ningún archivo"
-    
-    print(archivo.filename)
-   
-    # Cargamos el archivo
-    # Leer el archivo XLS con pandas
-    df = pd.read_excel(archivo)
-    # Guardar el archivo XLSX
-    archivo_xlsx = f"./static/resources/{archivo.filename}.xlsx"
-    df.to_excel(archivo_xlsx, index=False)
-    
-    wb = load_workbook('./static/resources/{a}.xlsx'.format(a = archivo.filename))
-    ws = wb["Sheet1"]
-    nomb = ws['C2'].value
-    matr = ws['C3'].value
-    matr = matr.split("/")[-1].strip() # esto devuelve la segunda matrícula
-    print(f"Alumno: {nomb}, matricula: {matr}")
-    #elimina de ls bd todos las calificaciones anteriores
-    #capaz update sea mejor
-    historial = session.query(models.Historial).filter(models.Historial.matricula == matr) #Se corrigió un error en el que no se eliminaba el historial viejo
-    if historial.count() > 0:
-        historial.delete()
-        session.commit()
-    inicio = 4
-    cont = 0
-    b = True
-    data = []  # Lista para almacenar los datos
-
-    while b:
-        if not ws['A{a}'.format(a=str(inicio + 1))].value:
-            cont += 1
-            if cont > 1:
+        #Cargamos el archivo
+        wb = load_workbook(archivo)
+        ws = wb["esdVerNotasAlumno"]
+        inicio = 1
+        b = True
+        data = []  # Lista para almacenar los datos
+        print('N, Matr, Name')
+        while b:
+            if not ws['A{a}'.format(a=str(inicio + 1))].value:
                 b = False
+            else:
+                print(ws['A{a}'.format(a = str(inicio + 1))].value, ws['B{a}'.format(a = str(inicio + 1))].value, ws['D{a}'.format(a = str(inicio + 1))].value)
+                num = ws['A{a}'.format(a=str(inicio + 1))].value
+                matricula = ws['B{a}'.format(a=str(inicio + 1))].value
+                nombre = ws['D{a}'.format(a=str(inicio + 1))].value
+
+                data.append({
+                    'num': num,
+                    'matricula': matricula,
+                    'nombre': nombre,
+                })
+
+                inicio += 1
+
+        # Convertir a JSON
+        print(data)
+        json_data = jsonify(data)
+        print(json_data)
+        return json_data
+        #return render_template('alumno.html', data=json_data, id=id)
+
+@app.route('/loadSt', methods=['POST'])
+def loadSt():
+    if request.method =='POST':
+        temp=[]
+        name=request.form['nombre']
+        mat=request.form['codigo']
+        temp.append(name)
+        temp.append(mat)
+        alumnos.append(temp)
+    return render_template('index.html', data=alumnos)
+
+@app.route('/histAl/<mat>')
+def histAl(mat):
+    return render_template('alumno.html', id=mat, data=data)
+
+@app.route('/read_notas/<id>', methods=['GET','POST'])
+def read_notas(id):
+    if request.method == 'POST':
+        archivo = request.files['archivo']
+        if "archivo" not in request.files:
+            print("No se envió ningún archivo")
+            return "No se envió ningún archivo"
+        elif archivo.filename == "":
+            print("No se seleccionó ningún archivo")
+            return "No se seleccionó ningún archivo"
+
+        #Cargamos el archivo
+        wb = load_workbook(archivo)
+        ws = wb["esdVerNotasAlumno"]
+        mat = []
+        idPlanilla = ws.cell(3,3).value
+        if id != idPlanilla: #Si la matricula de la planilla es distinta a la del alumno seleccionado tira un error
+            return "La planilla cargada corresponde a otro alumno."
         else:
-            mat = ws['A{a}'.format(a=str(inicio + 1))].value
-            cod = ws['D{a}'.format(a=str(inicio + 1))].value
-            opo = ws['E{a}'.format(a=str(inicio + 1))].value
-            nota = ws['F{a}'.format(a=str(inicio + 1))].value
-            nota = nota.split(':')[0].strip()
-            act = ws['G{a}'.format(a=str(inicio + 1))].value
-            fec = ws['H{a}'.format(a=str(inicio + 1))].value
-            data.append(
-            {
-                'alu': ws['C2'].value,
-                'mat': mat,
-                'cod': cod,
-                'opo': opo,
-                'nota': nota,
-                'act': act,
-                'fec': fec
-            })
-            #carga la nueva calificación a bd
-            date = datetime.strptime(fec, '%d/%m/%Y')
-            newhistorial = models.Historial(matricula = matr, materia_codigo = cod, nota = nota, oportunidad = opo, fecha_examen = date)
-            session.add(newhistorial)
-            session.flush()
-        inicio += 1
-    # Convertir a JSON
-    json_data = jsonify(data)
-    os.remove('./static/resources/{a}.xlsx'.format(a = archivo.filename)) #elimina el excel del sistema
-    print(json_data)
-    #coomit de la bd y cierre de sesión
-    session.commit()
-    session.close()
-    return json_data
+            for row_cells in ws.iter_rows(min_row=5):
+                for cell in row_cells:
+                    if cell.value != None:
+                        mat.append(cell.value)
+
+                    #print('%s: cell.value=%s' % (cell, cell.value))
+                #este json que estoy guardando en el arreglo temporal es lo que guardariamos en la db
+                data.append({
+                    'Materia': mat[0],
+                    'CodigoMateria': mat[1],
+                    'Oportunidad': mat[2],
+                    'Nota': mat[3].split(":")[0],
+                    'CodigoCarrera':mat[4],
+                    'Fecha': mat[5],
+                    'Curso': mat[6],
+                    'Carrera': mat[7]
+                })
+
+                mat=[]
+    return render_template('alumno.html', data=data, id=id)
+
+
 
 if __name__=='__main__':
     app.run(debug = True, port= 8000)

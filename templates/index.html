@@ -48,6 +48,7 @@
         </form>
       </div>
     </div>
+
     <div class="row mt-2">
       <div class="col-md-4">
         <div class="row">
@@ -55,16 +56,17 @@
             <h1>Cargar alumnos</h1>
           </div>
         </div>
+        <form method="POST" action="/loadSt">
         <div class="row">
           <div class="col-md-12">
             <div class="row mb-2">
               <div class="col-md-6">
                 <label for="codigo" class="form-label">Matricula:</label>
-                <input type="text" class="form-control" id="codigo">
+                <input type="text" class="form-control" id="codigo" name="codigo">
               </div>
               <div class="col-md-6">
                 <label for="nombre" class="form-label">Nombre:</label>
-                <input type="text" class="form-control" id="nombre">
+                <input type="text" class="form-control" id="nombre" name="nombre" >
               </div>
             </div>
             <div class="row mb-2">
@@ -74,27 +76,42 @@
               <div class="col-md-4">
                 <p class="fw-bold">O IMPORTAR:</p>
               </div>
+              <!--
               <div class="col-md-4">
                 <input type="file" name="archivo" id="fileInput" class="btn btn-secondary small-file-input">
                 <button id="uploadButton" class="btn btn-primary">Subir</button>
               </div>
+              -->
             </div>
           </div>
         </div>
+        </form>
       </div>
+
+
       <!--Table-->
-      <div class="col-md-8">
+      <div class="col-8">
         <h1>Alumnos cargados</h1>
         <table class="table table-hover">
           <thead>
             <tr>
-              <th scope="col"></th>
-              <th scope="col">Matricula</th>
-              <th scope="col">Nombre y Apellido</th>
-              <th scope="col">Notas</th>
+              <td>Matricula</td>
+              <td>Nombre y Apellido</td>
+              <td>Opciones</td>
             </tr>
           </thead>
           <tbody>
+          {% for al in data %}
+          <tr>
+
+              <td>{{al.1}}</td>
+              <td>{{al.0}}</td>
+              <td>
+                <a type="button" class="btn btn-warning" href="histAl/{{al.1}}">Cargar Historial</a>
+              </td>
+
+          </tr>
+          {% endfor %}
           </tbody>
         </table>
       </div>

@@ -1,5 +1,8 @@
 ﻿from flask import Flask, url_for, redirect, render_template, send_file, request
 from config import DevConfig
+import sqlite3
+from sqlalchemy import text
+import sqlalchemy as db
 from database.conexion import *
 from database.models import *
 
@@ -14,10 +17,24 @@ app.config.from_object(DevConfig)
 #Variables que uso de forma temporal ya que despues se va a guardar en la db
 alumnos=[] #para la cargar de alumnos (ver /loadSt)
 data = []  #para la carga del historial de materias (ver /histAl)
-
+engine = db.create_engine('sqlite:///dbTest.db')
 @app.route('/')
 def index():
-    return render_template('index.html', data=alumnos)
+    session = SessionLocal()
+    cohortes = session.execute(text('select * from cohortes'))
+    coh = cohortes.fetchall()
+    return render_template('index.html', data=coh)
+
+@app.route('/selCoh', methods=['POST'])
+def selCoh():
+    if request.method == 'POST':
+        cid = request.form['cid']
+        value = {'x': cid[1]}
+        session = SessionLocal()
+
+        con = text("select * from alumnos where alumnos.cohorte_id = :x")
+        alumnos = session.execute(con, value)
+        return render_template('cohortes.html', data=alumnos, coh=value['x'])
 
 ##Ruta de descarga del modelo del excel
 @app.route('/download_template', methods = ['GET', 'POST'])
@@ -80,7 +97,11 @@ def loadSt():
 
 @app.route('/histAl/<mat>')
 def histAl(mat):
-    return render_template('alumno.html', id=mat, data=data)
+    value = {'x': mat}
+    session = SessionLocal()
+    con = text("select * from historial where historial.matricula = :x")
+    historial = session.execute(con, value)
+    return render_template('alumno.html', id=mat, data=historial)
 
 @app.route('/read_notas/<id>', methods=['GET','POST'])
 def read_notas(id):
@@ -98,28 +119,25 @@ def read_notas(id):
         ws = wb["esdVerNotasAlumno"]
         mat = []
         idPlanilla = ws.cell(3,3).value
-        if id != idPlanilla: #Si la matricula de la planilla es distinta a la del alumno seleccionado tira un error
-            return "La planilla cargada corresponde a otro alumno."
-        else:
-            for row_cells in ws.iter_rows(min_row=5):
-                for cell in row_cells:
-                    if cell.value != None:
-                        mat.append(cell.value)
+        for row_cells in ws.iter_rows(min_row=5):
+            for cell in row_cells:
+                if cell.value != None:
+                    mat.append(cell.value)
 
-                    #print('%s: cell.value=%s' % (cell, cell.value))
+                #print('%s: cell.value=%s' % (cell, cell.value))
                 #este json que estoy guardando en el arreglo temporal es lo que guardariamos en la db
-                data.append({
-                    'Materia': mat[0],
-                    'CodigoMateria': mat[1],
-                    'Oportunidad': mat[2],
-                    'Nota': mat[3].split(":")[0],
-                    'CodigoCarrera':mat[4],
-                    'Fecha': mat[5],
-                    'Curso': mat[6],
-                    'Carrera': mat[7]
-                })
+            data.append({
+                'Materia': mat[0],
+                'CodigoMateria': mat[1],
+                'Oportunidad': mat[2],
+                'Nota': mat[3].split(":")[0],
+                'CodigoCarrera':mat[4],
+                'Fecha': mat[5],
+                'Curso': mat[6],
+                'Carrera': mat[7]
+            })
 
-                mat=[]
+            mat=[]
     return render_template('alumno.html', data=data, id=id)
 
 

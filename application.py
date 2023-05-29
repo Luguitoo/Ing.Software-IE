@@ -103,8 +103,8 @@ def histAl(mat):
     historial = session.execute(con, value)
     return render_template('alumno.html', id=mat, data=historial)
 
-@app.route('/read_notas/<id>', methods=['GET','POST'])
-def read_notas(id):
+@app.route('/read_notas', methods=['GET','POST'])
+def read_notas():
     if request.method == 'POST':
         archivo = request.files['archivo']
         if "archivo" not in request.files:
@@ -127,18 +127,24 @@ def read_notas(id):
                 #print('%s: cell.value=%s' % (cell, cell.value))
                 #este json que estoy guardando en el arreglo temporal es lo que guardariamos en la db
             data.append({
-                'Materia': mat[0],
-                'CodigoMateria': mat[1],
-                'Oportunidad': mat[2],
-                'Nota': mat[3].split(":")[0],
-                'CodigoCarrera':mat[4],
-                'Fecha': mat[5],
-                'Curso': mat[6],
-                'Carrera': mat[7]
+                #id
+                'matricula': idPlanilla,
+                #a partir de aca se guarda en la tabla historial
+                'materia_codigo': mat[1],
+                'nota': mat[3].split(":")[0],
+                'oportunidad': mat[2],
+                'fecha_examen': mat[5]
             })
-
             mat=[]
-    return render_template('alumno.html', data=data, id=id)
+        print(data)
+        for mat in data:
+            session = SessionLocal()
+            #con = text("select * from alumnos where alumnos.cohorte_id = :x")
+            con = text("INSERT into historial (matricula,materia_codigo,nota,oportunidad,fecha_examen) VALUES (:matricula, :materia_codigo, :nota, :oportunidad,:fecha_examen)")
+            res = session.execute(con, mat)
+            session.commit()
+            session.close()
+    return "Exito!"
 
 
 

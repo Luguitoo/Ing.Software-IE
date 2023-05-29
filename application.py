@@ -126,7 +126,6 @@ def read_notas():
         return "No se seleccionó ningún archivo"
     
     print(archivo.filename)
-   
     # Cargamos el archivo
     # Leer el archivo XLS con pandas
     df = pd.read_excel(archivo)
@@ -193,13 +192,16 @@ def read_notas():
 
 
 #Ver historial de asignaturas del alumno
-@app.route('/historial')
-def historial():
+@app.route('/historial/<mat>')
+def historial(mat:str):
     session = SessionLocal()
     semestres =  session.query(func.count(models.Semestre.semestre_id)).first()
-    print(semestres)
+    materias = session.query(models.Materias.materia_codigo, models.Materias.materia_descrip, models.Semestre.semestre_id, models.Historial.nota).join(models.Semestre).outerjoin(models.Historial).join(models.Alumnos).filter(models.Alumnos.matricula==mat.upper()).order_by(models.Semestre.semestre_id).all()
+    for i in materias:
+        print(i)
+    print(len(materias))
     session.close()
-    return render_template('historial.html')
+    return render_template('historial.html', materias = materias)
 
 
 if __name__=='__main__':

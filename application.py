@@ -4,6 +4,11 @@ from config import DevConfig
 import sqlite3
 import os
 from datetime import datetime
+from sqlalchemy import text
+import sqlalchemy as db
+from database.conexion import *
+from database.models import *
+
 #Excel
 from openpyxl import load_workbook
 from openpyxl.styles import PatternFill
@@ -25,14 +30,27 @@ application = app = Flask(__name__)
 app.config.from_object(DevConfig)
 dbtest = sqlite3.connect('NombreDeLaDB.db')
 
-##Vistas
+#Variables que uso de forma temporal ya que despues se va a guardar en la db
+alumnos=[] #para la cargar de alumnos (ver /loadSt)
+data = []  #para la carga del historial de materias (ver /histAl)
+
 @app.route('/')
 def index():
     session = SessionLocal()
-    models.insert_estados(session) #Crea los estados en la base de datos
-    models.insert_test_data(session) #Inserta datos de prueba en la base de datos
-    #outs = session.query(models.Historial).all()
-    #ejemplo de como usar codigo sql con sqlalchemy, tambien funciona con insert, delete, etc
+    cohortes = session.execute(text('select * from cohortes'))
+    coh = cohortes.fetchall()
+    return render_template('index.html', data=coh)
+
+@app.route('/selCoh', methods=['POST'])
+def selCoh():
+    if request.method == 'POST':
+        cid = request.form['cid']
+        value = {'x': cid[1]}
+        session = SessionLocal()
+
+        con = text("select * from alumnos where alumnos.cohorte_id = :x")
+        alumnos = session.execute(con, value)
+        return render_template('cohortes.html', data=alumnos, coh=value['x'])
 
     #for i in range(1,8):
     #    print(tasa_promocion_semestral(1, i, session))

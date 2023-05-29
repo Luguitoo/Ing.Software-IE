@@ -1,5 +1,4 @@
-﻿from ast import Delete
-from flask import Flask, url_for, redirect, render_template, send_file, request
+﻿from flask import Flask, url_for, redirect, render_template, send_file, request
 from config import DevConfig
 import sqlite3
 import os
@@ -33,9 +32,8 @@ def index():
     models.insert_test_data(session) #Inserta datos de prueba en la base de datos
     #outs = session.query(models.Historial).all()
     #ejemplo de como usar codigo sql con sqlalchemy, tambien funciona con insert, delete, etc
-
-    #for i in range(1,8):
-    #    print(tasa_promocion_semestral(1, i, session))
+    #for i in range(1,10):
+    #    print(tasa_retencion(1,i,session))
 
     """for i in outs:
         print(i.matricula, ' - ', i.nota)"""

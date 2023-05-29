@@ -75,7 +75,13 @@ def insert_test_data(engine): #Esta función es temporal, solo para cargar los d
     engine.execute(stmt, [{"cohorte_id": 1, "semestre_id": 1, "cantidad": 3},
                           {"cohorte_id": 1, "semestre_id": 2, "cantidad": 3},
                           {"cohorte_id": 1, "semestre_id": 3, "cantidad": 3},
-                          {"cohorte_id": 1, "semestre_id": 4, "cantidad": 3}])
+                          {"cohorte_id": 1, "semestre_id": 4, "cantidad": 3},
+                          {"cohorte_id": 1, "semestre_id": 5, "cantidad": 3},
+                          {"cohorte_id": 1, "semestre_id": 6, "cantidad": 3},
+                          {"cohorte_id": 1, "semestre_id": 7, "cantidad": 3},
+                          {"cohorte_id": 1, "semestre_id": 8, "cantidad": 3},
+                          {"cohorte_id": 1, "semestre_id": 9, "cantidad": 3},
+                          {"cohorte_id": 1, "semestre_id": 10, "cantidad": 3}])
     engine.flush()
     engine.commit()
     

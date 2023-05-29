@@ -1,12 +1,18 @@
 const fileInput = document.getElementById('fileInput');
 const uploadButton = document.getElementById('uploadButton');
+const inputdesde = document.getElementById('desde');
+const inputhasta = document.getElementById('hasta');
 
 uploadButton.addEventListener('click', () => {
-  const file = fileInput.files[0];
+    const file = fileInput.files[0];
+    const desde = inputdesde.value;
+    const hasta = inputhasta.value;
 
   if (file) {
     const formData = new FormData();
     formData.append('archivo', file);
+    formData.append('desde', desde);
+    formData.append('hasta', hasta);
 
     // Realizar la solicitud AJAX al backend
     const xhr = new XMLHttpRequest();

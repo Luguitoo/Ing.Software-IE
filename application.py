@@ -1,3 +1,4 @@
+from ast import Delete
 from flask import Flask, url_for, redirect, render_template, send_file, request
 from config import DevConfig
 import sqlite3
@@ -14,21 +15,31 @@ from database import models
 from sqlalchemy import text
 from database.conexion import SessionLocal, engine
 from database.conexion import SessionLocal
-models.Base.metadata.create_all(bind=engine)
 
+models.Base.metadata.create_all(bind=engine)
 
 application = app = Flask(__name__)
 
 app.config.from_object(DevConfig)
 dbtest = sqlite3.connect('NombreDeLaDB.db')
+
 ##Vistas
 @app.route('/')
 def index():
     session = SessionLocal()
+    models.insert_estados(session) #Crea los estados en la base de datos
     #outs = session.query(models.Historial).all()
     #ejemplo de como usar codigo sql con sqlalchemy, tambien funciona con insert, delete, etc
-    outs = session.execute(text('select * from historial'))
-    print(outs.fetchall())
+
+    #outs = session.execute(text('select * from cohortes'))
+    #print(outs.fetchall())
+    #outs = session.execute(text('select * from alumnos'))
+    #print(outs.fetchall())
+    #outs = session.execute(text('select * from materias'))
+    #print(outs.fetchall())
+    #outs = session.execute(text('select * from historial'))
+    #print(outs.fetchall())
+
     """for i in outs:
         print(i.matricula, ' - ', i.nota)"""
     session.close()
@@ -37,6 +48,7 @@ def index():
 @app.route('/notas')
 def notas():
     return render_template('notas.html')
+
 ##Procesos
 ##Ruta de descarga del modelo del excel, terminado Lugo
 @app.route('/download_template', methods = ['GET', 'POST'])
@@ -47,7 +59,10 @@ def download_template():
 ##Leer excel de alumnos y carga en el front, terminado Lugo
 @app.route('/read_excel', methods=['POST']) 
 def read_excel():
+    session = SessionLocal()
     archivo = request.files['archivo']
+    inic = request.form['desde']
+    fin = request.form['hasta']
     if "archivo" not in request.files:
         print("No se envió ningún archivo")
         return "No se envió ningún archivo"
@@ -61,6 +76,15 @@ def read_excel():
     inicio = 1
     b = True
     data = []  # Lista para almacenar los datos
+
+    #Carga la cohorte si no existe
+    id_cohor = session.query(models.Cohortes.cohorte_id).filter(models.Cohortes.cohorte_inicio == inic).first()
+    if not id_cohor: #Falta alguna advertencia si es que ya existe la cohorte
+        newcohorte = models.Cohortes(cohorte_inicio = inic,cohorte_fin = fin)
+        session.add(newcohorte)
+        session.flush()
+        session.commit()
+
     print('N, Matr, Name')
     while b:
         if not ws['A{a}'.format(a=str(inicio + 1))].value:
@@ -76,8 +100,15 @@ def read_excel():
                 'matricula': matricula,
                 'nombre': nombre,
             })
-
+            
             inicio += 1
+            matric = session.query(models.Alumnos.matricula).filter(models.Alumnos.matricula == matricula).first()
+            if not matric: #Falta alguna advertencia si es que ya existe el alumno
+                newalumno = models.Alumnos(matricula = matricula, alumno_nombre = nombre, cohorte_id = id_cohor[0])
+                session.add(newalumno)
+                session.flush()
+    session.commit()
+    session.close()
 
     # Convertir a JSON
     json_data = jsonify(data)
@@ -132,6 +163,7 @@ def read_notas():
             cod = ws['D{a}'.format(a=str(inicio + 1))].value
             opo = ws['E{a}'.format(a=str(inicio + 1))].value
             nota = ws['F{a}'.format(a=str(inicio + 1))].value
+            nota = nota.split(':')[0].strip()
             act = ws['G{a}'.format(a=str(inicio + 1))].value
             fec = ws['H{a}'.format(a=str(inicio + 1))].value
             data.append(
@@ -140,13 +172,13 @@ def read_notas():
                 'mat': mat,
                 'cod': cod,
                 'opo': opo,
-                'nota': nota.split(':')[0].strip(),
+                'nota': nota,
                 'act': act,
                 'fec': fec
             })
             #carga la nueva calificación a bd
             date = datetime.strptime(fec, '%d/%m/%Y')
-            newhistorial = models.Historial(matricula = matr, materia_codigo = cod, nota = nota, fecha_examen = date)
+            newhistorial = models.Historial(matricula = matr, materia_codigo = cod, nota = nota, oportunidad = opo, fecha_examen = date)
             session.add(newhistorial)
             session.flush()
         inicio += 1
@@ -158,6 +190,7 @@ def read_notas():
     session.commit()
     session.close()
     return json_data
+
 if __name__=='__main__':
     app.run(debug = True, port= 8000)
 

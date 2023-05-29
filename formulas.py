@@ -1,77 +1,118 @@
-from application import session
+ï»¿#from application import session
 from database import models
-from sqlalchemy import text
+from sqlalchemy import text, outerjoin, and_
 
-def get_EIIC(cohorte):
-    # EIIC: Número de estudiantes que se inscriben al primer curso de la carrera
+def get_EIIC(cohorte, session):
+    # EIIC: NÃºmero de estudiantes que se inscriben al primer curso de la carrera
     EIIC = session.query(models.Alumnos).filter(models.Alumnos.cohorte_id == cohorte).count()
     return EIIC
 
-def get_ECE(cohorte):
-    # ECE: Número de estudiantes de la cohorte que egresan en el tiempo estipulado en el Plan de Estudio
-    ECE = session.execute(text(f"""SELECT COUNT(*) FROM (
-        SELECT id_historial, matricula, materia_codigo, nota, oportunidad, fecha_examen, ROW_NUMBER() OVER 
-            (PARTITION BY matricula, materia_codigo ORDER BY nota DESC) AS rn
-        FROM Historial) AS h
-    WHERE rn = 1""")).fetchall()
+def get_ECE(cohorte,session):
+    # ECE: NÃºmero de estudiantes de la cohorte que egresan en el tiempo estipulado en el Plan de Estudio
+    ECE = session.execute(text(f"""
+    SELECT SUM(cantidad) AS total
+    FROM (
+        SELECT COUNT(DISTINCT a.matricula) AS cantidad
+        FROM alumnos AS a
+        JOIN (
+            SELECT matricula, materia_codigo, MAX(nota) AS nota_max
+            FROM historial
+            GROUP BY matricula, materia_codigo
+        ) AS h ON a.matricula = h.matricula
+        WHERE a.estado_id = 1 AND a.cohorte_id = {cohorte}
+        GROUP BY a.matricula
+        HAVING COUNT(CASE WHEN h.nota_max >= 2 THEN h.materia_codigo ELSE NULL END) = (SELECT COUNT(*) FROM materias)
+    ) AS t
+    """)).scalar()
     return ECE
 
-def eficiencias(cohorte):
-    # ECEn: Número de estudiantes otra cohorte (estudiantes matriculados en otras cohortes)
-    # ET: Eficiencia terminal
-    # EE: Eficiencia de egreso
-    # RE: Rezago educativo
-    EIIC = get_EIIC(cohorte)
-    ECE = get_ECE(cohorte)
-    ET = (ECE * 100) / EIIC
-    EE = ((ECE + ECEn) * 100) / EIIC
-    RE = EE - ET
-    return ET, EE, RE
+def get_Ei(cohorte, semestre, session):
+    # Ei: NÃºmero de estudiantes inscriptos en un semestre
+    Ei = session.query(models.Cantidad_inscript.cantidad).join(models.Cohortes, models.Cantidad_inscript.cohorte_id == models.Cohortes.cohorte_id).filter(
+        and_(models.Cohortes.cohorte_id == cohorte, models.Cantidad_inscript.semestre_id == semestre)).scalar()
+    return Ei
 
-def tasa_promocion_semestral(Ep, Ei):
-    # Ep: Número de estudiantes promovidos de cada semestre (primero a n)
-    # Ei: Número de estudiantes inscriptos en cada semestre (primero a n)
-    # TP: Tasa de promoción semestral
-    TP = (Ep * 100) / Ei
+def get_Ep(cohorte, semestre, session):
+    # Ep: NÃºmero de estudiantes promovidos de cada semestre (primero a n)
+    Ep = session.execute(text(f"""
+    SELECT COUNT(*) AS total
+    FROM (
+        SELECT COUNT(DISTINCT a.matricula) AS cantidad
+        FROM alumnos AS a
+        JOIN (
+                SELECT matricula, materia_codigo, MAX(nota) AS nota_max
+                FROM historial
+                GROUP BY matricula, materia_codigo
+            ) AS h ON a.matricula = h.matricula
+        WHERE a.cohorte_id = {cohorte} AND h.materia_codigo IN (
+            SELECT materia_codigo FROM materias WHERE semestre_id = {semestre}
+        )
+        GROUP BY a.matricula
+        HAVING COUNT(CASE WHEN h.nota_max >= 2 THEN h.materia_codigo ELSE NULL END) = (
+            SELECT COUNT(*) FROM materias WHERE semestre_id = {semestre}
+        )
+    ) AS t""")).scalar()
+    return Ep
+
+def eficiencias(cohorte, session): #Listo
+    # ECEn: NÃºmero de estudiantes otra cohorte (estudiantes matriculados en otras cohortes) (No se usa)
+    # ET: Eficiencia terminal (No se usa)
+    # EE: Eficiencia de egreso
+    # RE: Rezago educativo (No se puede usar)
+    EIIC = get_EIIC(cohorte, session)
+    ECE = get_ECE(cohorte, session)
+    ET = (ECE * 100) / EIIC
+    #EE = ((ECE + ECEn) * 100) / EIIC (No se usa)
+    #RE = EE - ET (No se usa)
+    return ET
+
+def tasa_promocion_semestral(cohorte, semestre, session): #en pruebas
+    # TP: Tasa de promociÃ³n semestral
+    Ei = get_Ei(cohorte, semestre, session)
+    Ep = get_Ep(cohorte, semestre, session)
+    if Ei != None:
+        TP = (Ep * 100) / Ei
+    else:
+        TP = 0
     return TP
 
 def tasa_promocion_anual(TPr1, TPr2):
-    # TPr1: Tasa de promoción del primer semestre
-    # TPr2: Tasa de promoción del segundo semestre
-    # TPr: Tasa de promoción anual
+    # TPr1: Tasa de promociÃ³n del primer semestre
+    # TPr2: Tasa de promociÃ³n del segundo semestre
+    # TPr: Tasa de promociÃ³n anual
     TPr = (TPr1 + TPr2) / 2
     return TPr
 
 def tasa_desercion_semestral(EACS, EIIS):
-    # EACS: Número de estudiantes que abandonan la carrera en el transcurso del semestre
-    # EIIS: Número de estudiantes que se incriben en el inicio del semestre
-    # TDSC: Tasa de deserción semestral
+    # EACS: NÃºmero de estudiantes que abandonan la carrera en el transcurso del semestre
+    # EIIS: NÃºmero de estudiantes que se incriben en el inicio del semestre
+    # TDSC: Tasa de deserciÃ³n semestral
     TDSC = (EACS * 100) / EIIS
     return TDSC
 
 def tasa_desercion_generacional(EIIC, ECE):
-    # EIIC: Número de estudiantes que se inscriben al primer curso de la carrera
-    # ECE: Número de estudiantes de la cohorte que egresan en el tiempo estipulado en el Plan de Estudio
-    # TDSC: Tasa de deserción generacional
+    # EIIC: NÃºmero de estudiantes que se inscriben al primer curso de la carrera
+    # ECE: NÃºmero de estudiantes de la cohorte que egresan en el tiempo estipulado en el Plan de Estudio
+    # TDSC: Tasa de deserciÃ³n generacional
     TDSC = ((EIIC - ECE) * 100) / EIIC
     return TDSC
 
 def eficiencia_titulacion(ET, EE):
-    # ET: Número de estudiantes titualados
+    # ET: NÃºmero de estudiantes titualados
     # EE: Eficiencia de egreso
-    # ETE: Eficiencia de titulación
+    # ETE: Eficiencia de titulaciÃ³n
     ETE = (ET * 100) / EE
     return ETE
 
 def tasa_retencion(EIS, EIIC):
-    # EIS: Número de estudiantes inscriptos en el semestre, independientemente de que repitan asignaturas o semestres.
-    # EIIC: Número de estudiantes que se inscriben al primer curso de la carrera 
-    # TR: Tasa de retención 
+    # EIS: NÃºmero de estudiantes inscriptos en el semestre, independientemente de que repitan asignaturas o semestres.
+    # EIIC: NÃºmero de estudiantes que se inscriben al primer curso de la carrera 
+    # TR: Tasa de retenciÃ³n 
     TR = (EIS * 100) / EIIC 
     return TR
 
 def tiempo_medio_egreso(PrE, N):
-    # PrE: Número promedio de semestres empleados por el egresado n de la cohorte para cursar la carrera 
+    # PrE: NÃºmero promedio de semestres empleados por el egresado n de la cohorte para cursar la carrera 
     # N: Cantidad de egresados 
     # TME: Tiempo medio de egreso 
     TME = (PrE1 + ... + PrEn) / N 

@@ -43,17 +43,10 @@ class Historial(Base):
 class Cantidad_inscript(Base):
     __tablename__ = 'cantidad_inscripciones'
     cohorte_id = Column(Integer, ForeignKey('cohortes.cohorte_id'), primary_key=True)
-    semestre = Column(Integer, ForeignKey('semestre.semestre_id'), primary_key=True)
+    semestre_id = Column(Integer, ForeignKey('semestre.semestre_id'), primary_key=True)
     cantidad = Column(Integer)
 
 def insert_estados(engine):
-    for i in range(1,10):
-        stmt = Semestre.__table__.insert()
-        stmt = stmt.prefix_with("OR IGNORE")
-        engine.execute(stmt, [{"semestre_id": i}])
-        engine.flush()
-        engine.commit()
-
     stmt = Estados.__table__.insert()
     stmt = stmt.prefix_with("OR IGNORE")
     engine.execute(stmt, 
@@ -68,8 +61,31 @@ def insert_estados(engine):
     )
     engine.flush()
     engine.commit()
+
+def insert_test_data(engine): #Esta función es temporal, solo para cargar los datos de prueba
+    for i in range(1,10): #Semestres
+        stmt = Semestre.__table__.insert()
+        stmt = stmt.prefix_with("OR IGNORE")
+        engine.execute(stmt, [{"semestre_id": i}])
+        engine.flush()
+        engine.commit()
     
-    stmt = Materias.__table__.insert()
+    stmt = Cantidad_inscript.__table__.insert() #Inscripciones
+    stmt = stmt.prefix_with("OR IGNORE")
+    engine.execute(stmt, [{"cohorte_id": 1, "semestre_id": 1, "cantidad": 3},
+                          {"cohorte_id": 1, "semestre_id": 2, "cantidad": 3},
+                          {"cohorte_id": 1, "semestre_id": 3, "cantidad": 3},
+                          {"cohorte_id": 1, "semestre_id": 4, "cantidad": 3},
+                          {"cohorte_id": 1, "semestre_id": 5, "cantidad": 3},
+                          {"cohorte_id": 1, "semestre_id": 6, "cantidad": 3},
+                          {"cohorte_id": 1, "semestre_id": 7, "cantidad": 3},
+                          {"cohorte_id": 1, "semestre_id": 8, "cantidad": 3},
+                          {"cohorte_id": 1, "semestre_id": 9, "cantidad": 3},
+                          {"cohorte_id": 1, "semestre_id": 10, "cantidad": 3}])
+    engine.flush()
+    engine.commit()
+    
+    stmt = Materias.__table__.insert() #Materias
     stmt = stmt.prefix_with("OR IGNORE")
     data = ([
         {"materia_codigo":"BII066","materia_descrip":"Álgebra Lineal","semestre_id": 2},
@@ -119,3 +135,20 @@ def insert_estados(engine):
     ])
     engine.execute(stmt,data)
 
+    stmt = Cohortes.__table__.insert()
+    stmt = stmt.prefix_with("OR IGNORE")
+    engine.execute(stmt, [{"cohorte_id": 1, "cohorte_inicio": 2020, "cohorte_fin": 2024}])
+    engine.flush()
+    engine.commit()
+
+    stmt = Alumnos.__table__.insert()
+    stmt = stmt.prefix_with("OR IGNORE")
+    engine.execute(stmt,
+        [
+            {"matricula": "Y20840", "alumno_nombre": "Pintos Villasboa, Elias David", "cohorte_id": 1},
+            {"matricula": "Y20813", "alumno_nombre": "Fernández Ojeda, Fernando Obdulio", "cohorte_id": 1},
+            {"matricula": "Y28923", "alumno_nombre": "Ríos Nicoli, Brian Martin", "cohorte_id": 1}
+        ]
+    )
+    engine.flush()
+    engine.commit()

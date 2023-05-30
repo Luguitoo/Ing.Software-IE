@@ -1,5 +1,4 @@
-from ast import Delete
-from flask import Flask, url_for, redirect, render_template, send_file, request
+﻿from flask import Flask, url_for, redirect, render_template, send_file, request
 from config import DevConfig
 import sqlite3
 import os
@@ -13,10 +12,20 @@ from flask import jsonify
 #database con sqlalchemy
 from database import models
 from sqlalchemy import text, update
-from database.conexion import SessionLocal, engine
+from database.conexion import engine
 from database.conexion import SessionLocal
+#formulas
+from formulas import *
 
+import asyncio
 models.Base.metadata.create_all(bind=engine)
+##variables globales
+global cant_a
+cant_a = 0
+global cont
+cont = 0
+global alumnos
+alumnos = []
 
 application = app = Flask(__name__)
 
@@ -28,26 +37,32 @@ dbtest = sqlite3.connect('NombreDeLaDB.db')
 def index():
     session = SessionLocal()
     models.insert_estados(session) #Crea los estados en la base de datos
+    models.insert_test_data(session) #Inserta datos de prueba en la base de datos
     #outs = session.query(models.Historial).all()
     #ejemplo de como usar codigo sql con sqlalchemy, tambien funciona con insert, delete, etc
-
-    #outs = session.execute(text('select * from cohortes'))
-    #print(outs.fetchall())
-    #outs = session.execute(text('select * from alumnos'))
-    #print(outs.fetchall())
-    #outs = session.execute(text('select * from materias'))
-    #print(outs.fetchall())
-    #outs = session.execute(text('select * from historial'))
-    #print(outs.fetchall())
+    #for i in range(1,10):
+    #    print(tasa_retencion(1,i,session))
 
     """for i in outs:
         print(i.matricula, ' - ', i.nota)"""
+
     session.close()
     return render_template('index.html')
 
 @app.route('/notas')
 def notas():
-    return render_template('notas.html')
+    global cant_a
+    global cont
+    global alumnos
+    print(alumnos)
+    if cont == 0:
+        cont += 1
+    else:
+        cant_a -=1 
+        cont += 1
+    print(cant_a)
+    print(cont)
+    return render_template('notas.html', cant_a = cant_a, alumno = alumnos[cont - 1])
 
 ##Procesos
 ##Ruta de descarga del modelo del excel, terminado Lugo
@@ -59,6 +74,12 @@ def download_template():
 ##Leer excel de alumnos y carga en el front, terminado Lugo
 @app.route('/read_excel', methods=['POST']) 
 def read_excel():
+    global cant_a
+    global cont
+    global alumnos
+    alumnos = []
+    cant_a = 0
+    cont = 0
     session = SessionLocal()
     archivo = request.files['archivo']
     inic = request.form['desde']
@@ -78,7 +99,7 @@ def read_excel():
     data = []  # Lista para almacenar los datos
 
     #Carga la cohorte si no existe
-    id_cohor = session.query(models.Cohortes.cohorte_id).filter(models.Cohortes.cohorte_inicio == inic).first()
+    id_cohor = session.query(models.Cohortes.cohorte_id).filter(models.Cohortes.cohorte_inicio == inic).scalar()
     if not id_cohor: #Falta alguna advertencia si es que ya existe la cohorte
         newcohorte = models.Cohortes(cohorte_inicio = inic,cohorte_fin = fin)
         session.add(newcohorte)
@@ -94,25 +115,32 @@ def read_excel():
             num = ws['A{a}'.format(a=str(inicio + 1))].value
             matricula = ws['B{a}'.format(a=str(inicio + 1))].value
             nombre = ws['D{a}'.format(a=str(inicio + 1))].value
+            alumnos.append(nombre)
 
             data.append({
                 'num': num,
                 'matricula': matricula,
                 'nombre': nombre,
             })
-            
             inicio += 1
-            matric = session.query(models.Alumnos.matricula).filter(models.Alumnos.matricula == matricula).first()
-            if not matric: #Falta alguna advertencia si es que ya existe el alumno
-                newalumno = models.Alumnos(matricula = matricula, alumno_nombre = nombre, cohorte_id = id_cohor[0])
-                session.add(newalumno)
-                session.flush()
+            matric = session.query(models.Alumnos.matricula).filter(models.Alumnos.matricula == matricula).scalar()
+            # Llamar a la función agregar_alumno dentro de un bucle de eventos asyncio
+            asyncio.run(agregar_alumno(matricula, nombre, id_cohor))
+    cant_a = inicio - 1
+    ##print(cant_a)
     session.commit()
     session.close()
 
     # Convertir a JSON
     json_data = jsonify(data)
     return json_data
+##funcion agregar alumno, pq puede dar error
+async def agregar_alumno(matricula, nombre, id_cohor):
+    if not matricula:
+        # Realizar alguna advertencia si es que ya existe el alumno
+        new_alumno = models.Alumnos(matricula=matricula, alumno_nombre=nombre, cohorte_id=id_cohor[0])
+        session.add(new_alumno)
+        await session.flush()
 
 ##Leer notas del excel, terminado lugo
 @app.route('/read_notas', methods=['POST'])
@@ -120,15 +148,12 @@ def read_notas():
     session = SessionLocal()
     if "archivo" not in request.files:
         print("No se envió ningún archivo")
-        return "No se envió ningún archivo"
-    
+        return 400
     archivo = request.files['archivo']
     if archivo.filename == "":
         print("No se seleccionó ningún archivo")
-        return "No se seleccionó ningún archivo"
-    
+        return 400
     print(archivo.filename)
-   
     # Cargamos el archivo
     # Leer el archivo XLS con pandas
     df = pd.read_excel(archivo)
@@ -140,19 +165,18 @@ def read_notas():
     ws = wb["Sheet1"]
     nomb = ws['C2'].value
     matr = ws['C3'].value
+    matr = matr.split("/")[-1].strip() # esto devuelve la segunda matrícula
     print(f"Alumno: {nomb}, matricula: {matr}")
     #elimina de ls bd todos las calificaciones anteriores
     #capaz update sea mejor
-    historial = session.query(models.Historial).filter(models.Historial.matricula == matr).first()
-    if historial != None:
-        session.delete(historial)
-        #flush tipo elimina pero no elimina de la db hasta hacer commit
-        session.flush()
+    historial = session.query(models.Historial).filter(models.Historial.matricula == matr) #Se corrigió un error en el que no se eliminaba el historial viejo
+    if historial.count() > 0:
+        historial.delete()
+        session.commit()
     inicio = 4
     cont = 0
     b = True
     data = []  # Lista para almacenar los datos
-
     while b:
         if not ws['A{a}'.format(a=str(inicio + 1))].value:
             cont += 1

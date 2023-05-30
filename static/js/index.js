@@ -2,6 +2,10 @@ const fileInput = document.getElementById('fileInput');
 const uploadButton = document.getElementById('uploadButton');
 const inputdesde = document.getElementById('desde');
 const inputhasta = document.getElementById('hasta');
+//boton de cargar notas
+const btnCargarNotas = document.getElementById("btn-cargar-notas");
+
+btnCargarNotas.style.display = "none";
 
 uploadButton.addEventListener('click', () => {
     const file = fileInput.files[0];
@@ -25,14 +29,15 @@ uploadButton.addEventListener('click', () => {
 
         //dom en tbody
         const tableBody = document.querySelector("tbody");
-
+        tableBody.innerHTML = "";
+        btnCargarNotas.style.display = "block";
         for (let i = 0; i < response.length; i++) {
           const rowData = response[i];
           const row = document.createElement("tr");
           row.innerHTML = `<td>${i + 1}</td>
                             <td>${rowData.matricula}</td>
-                            <td>${rowData.nombre}</td>
-                            <td><a href="#"><i class="bi bi-clipboard-data"></i></a></td>`;
+                            <td>${rowData.nombre}</td>`;
+                            //<td><a href="/notas"><i class="bi bi-clipboard-data"></i></a></td>`;
 
           tableBody.appendChild(row);
         }

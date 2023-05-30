@@ -1,3 +1,5 @@
+
+//subir notas
 const fileInput = document.getElementById('fileInput');
 const uploadButton = document.getElementById('uploadButton');
 
@@ -25,7 +27,7 @@ uploadButton.addEventListener('click', () => {
           if (i == 1){
             const tituloAlumno = document.querySelector('.title');
             // Modificar alumno
-            tituloAlumno.innerHTML = `<i class="bi bi-file-person"></i> Alumno: ${rowData.alu}`;
+            //tituloAlumno.innerHTML = `<i class="bi bi-file-person"></i> Alumno: ${rowData.alu}`;
           }
           const row = document.createElement("tr");
           row.innerHTML = `<td>${rowData.mat}</td>

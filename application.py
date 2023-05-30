@@ -12,7 +12,7 @@ import pandas as pd
 from flask import jsonify
 #database con sqlalchemy
 from database import models
-from sqlalchemy import text
+from sqlalchemy import text, update
 from database.conexion import SessionLocal, engine
 from database.conexion import SessionLocal
 
@@ -190,6 +190,43 @@ def read_notas():
     session.commit()
     session.close()
     return json_data
+
+@app.route('/cant_inscriptos/<int:id>')
+def cant_inscriptos(id):
+    session = SessionLocal()
+    datos = []
+    semestre = session.query(models.Semestre).count()
+    id_cohorte = session.query(models.Cantidad_inscript.cohorte_id).filter(models.Cantidad_inscript.cohorte_id == id, models.Cantidad_inscript.semestre == 1).scalar()
+    print(id_cohorte)
+    #Verifica si realmente existe esa cohorte en la bd
+    cohorte = session.query(models.Cohortes.cohorte_id).filter(models.Cohortes.cohorte_id == id).scalar()
+    print(cohorte)
+    if not id_cohorte and cohorte:
+        for x in range(1, semestre + 1):
+            nuevo = models.Cantidad_inscript(cohorte_id = id, semestre = x, cantidad = 0 )
+            session.add(nuevo)
+            session.commit()
+    #si existe el primer registro, creo que se debería de crear el resto en 0
+    #O al cargar los incriptos del primer semestre ya se puede inicializar el resto en 0
+    datos = session.query(models.Cantidad_inscript.semestre, models.Cantidad_inscript.cantidad).filter(models.Cantidad_inscript.cohorte_id == id).all()
+    print(datos) 
+    session.close()
+    return render_template("cant_incriptos.html", datos=datos, id=id)
+@app.route("/actualizar_cantidad", methods=['POST'])
+def actualizar_cantidad():
+    session = SessionLocal()
+    semestre = session.query(models.Semestre).count()
+    id = request.form["id_cohorte"]
+    for x in range(1, semestre + 1):
+        registro = session.query(models.Cantidad_inscript).get((id, x))    
+        try:
+            cant = request.form["cant_"+str(x)]
+            registro.cantidad = cant
+            session.commit()
+        except:
+            return("Error")
+    session.close()
+    return("GUARDADO")
 
 if __name__=='__main__':
     app.run(debug = True, port= 8000)

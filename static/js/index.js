@@ -11,13 +11,16 @@ uploadButton.addEventListener('click', () => {
     const file = fileInput.files[0];
     const desde = inputdesde.value;
     const hasta = inputhasta.value;
-
+  if (!file || !desde || !hasta) {
+    // Mostrar alerta si falta algún valor
+    alert('Por favor, complete todos los campos');
+    return;
+  }  
   if (file) {
     const formData = new FormData();
     formData.append('archivo', file);
     formData.append('desde', desde);
     formData.append('hasta', hasta);
-
     // Realizar la solicitud AJAX al backend
     const xhr = new XMLHttpRequest();
     xhr.open('POST', '/read_excel', true);

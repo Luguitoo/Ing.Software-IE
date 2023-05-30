@@ -1,5 +1,4 @@
-﻿from ast import Delete
-from flask import Flask, url_for, redirect, render_template, send_file, request
+﻿from flask import Flask, url_for, redirect, render_template, send_file, request
 from config import DevConfig
 import sqlite3
 import os
@@ -23,7 +22,16 @@ from database.conexion import SessionLocal
 from sqlalchemy import func
 #formulas
 from formulas import *
+
+import asyncio
 models.Base.metadata.create_all(bind=engine)
+##variables globales
+global cant_a
+cant_a = 0
+global cont
+cont = 0
+global alumnos
+alumnos = []
 
 application = app = Flask(__name__)
 
@@ -77,7 +85,18 @@ def selCoh():
 
 @app.route('/notas')
 def notas():
-    return render_template('notas.html')
+    global cant_a
+    global cont
+    global alumnos
+    print(alumnos)
+    if cont == 0:
+        cont += 1
+    else:
+        cant_a -=1 
+        cont += 1
+    print(cant_a)
+    print(cont)
+    return render_template('notas.html', cant_a = cant_a, alumno = alumnos[cont - 1])
 
 ##Procesos
 ##Ruta de descarga del modelo del excel, terminado Lugo
@@ -89,6 +108,12 @@ def download_template():
 ##Leer excel de alumnos y carga en el front, terminado Lugo
 @app.route('/read_excel', methods=['POST']) 
 def read_excel():
+    global cant_a
+    global cont
+    global alumnos
+    alumnos = []
+    cant_a = 0
+    cont = 0
     session = SessionLocal()
     archivo = request.files['archivo']
     inic = request.form['desde']
@@ -124,25 +149,33 @@ def read_excel():
             num = ws['A{a}'.format(a=str(inicio + 1))].value
             matricula = ws['B{a}'.format(a=str(inicio + 1))].value
             nombre = ws['D{a}'.format(a=str(inicio + 1))].value
+            alumnos.append(nombre)
 
             data.append({
                 'num': num,
                 'matricula': matricula,
                 'nombre': nombre,
             })
-            
             inicio += 1
             matric = session.query(models.Alumnos.matricula).filter(models.Alumnos.matricula == matricula).scalar()
-            if not matric: #Falta alguna advertencia si es que ya existe el alumno
-                newalumno = models.Alumnos(matricula = matricula, alumno_nombre = nombre, cohorte_id = id_cohor[0])
-                session.add(newalumno)
-                session.flush()
+            # Llamar a la función agregar_alumno dentro de un bucle de eventos asyncio
+            asyncio.run(agregar_alumno(matricula, nombre, id_cohor))
+    cant_a = inicio - 1
+    ##print(cant_a)
     session.commit()
     session.close()
 
     # Convertir a JSON
     json_data = jsonify(data)
     return json_data
+##funcion agregar alumno, pq puede dar error
+async def agregar_alumno(matricula, nombre, id_cohor):
+    if not matricula:
+        session = SessionLocal()
+        # Realizar alguna advertencia si es que ya existe el alumno
+        new_alumno = models.Alumnos(matricula=matricula, alumno_nombre=nombre, cohorte_id=id_cohor[0])
+        session.add(new_alumno)
+        await session.flush()
 
 ##Leer notas del excel, terminado lugo
 @app.route('/read_all_notas', methods=['POST'])

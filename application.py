@@ -37,15 +37,15 @@ data = []  #para la carga del historial de materias (ver /histAl)
 @app.route('/')
 def index():
     session = SessionLocal()
-    cohortes = session.execute(text('select * from cohortes'))
-    coh = cohortes.fetchall()
-    return render_template('index.html', data=coh)
+    cohortes = session.query(models.Cohortes).all()
+    return render_template('index.html', data=cohortes)
 
-@app.route('/selCoh', methods=['POST'])
+@app.route('/selCoh', methods=['GET'])
 def selCoh():
-    if request.method == 'POST':
-        cid = request.form['cid']
-        value = {'x': cid[1]}
+    if request.method == 'GET':
+        cid = request.args.get('cid')
+        print(cid)
+        value = {'x': cid}
         session = SessionLocal()
 
         con = text("select * from alumnos where alumnos.cohorte_id = :x")
@@ -200,11 +200,13 @@ def read_notas():
     # Convertir a JSON
     json_data = jsonify(data)
     os.remove('./static/resources/{a}.xlsx'.format(a = archivo.filename)) #elimina el excel del sistema
-    print(json_data)
+    #print(json_data)
     #coomit de la bd y cierre de sesión
+    id_cohorte = session.query(models.Alumnos.cohorte_id).filter(models.Alumnos.matricula==matr).first()
     session.commit()
     session.close()
-    return json_data
+    print(id_cohorte)
+    return redirect('/selCoh?cid='+str(id_cohorte[0]))
 
 
 

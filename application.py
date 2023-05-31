@@ -2,6 +2,7 @@
 from config import DevConfig
 from database.conexion import *
 from database.models import *
+from database import models
 
 #Excel
 from openpyxl import load_workbook
@@ -121,6 +122,59 @@ def read_notas(id):
 
                 mat=[]
     return render_template('alumno.html', data=data, id=id)
+
+
+@app.route('/cargar_materias')
+def cargadematerias():
+   
+    return render_template('cargarmaterias.html')
+
+@app.route('/read_materias', methods=['POST'])
+def read_materias():
+    
+    if request.method == 'POST':
+        cant_a = 0
+        cont = 0
+        session = SessionLocal()
+        archivo = request.files['archivo']
+        if "archivo" not in request.files:
+            print("No se envió ningún archivo")
+            return "No se envió ningún archivo"
+        elif archivo.filename == "":
+            print("No se seleccionó ningún archivo")
+            return "No se seleccionó ningún archivo"
+        #Cargamos el archivo
+        wb = load_workbook(archivo)
+        ws = wb["Hoja1"]
+        inicio = 1
+        list = []
+        b = True
+        print("Todo bien")
+
+        print('Cod, Mate, Semes')
+    while b:
+        if not ws['A{a}'.format(a=str(inicio + 1))].value:
+            b = False
+        else:
+            print(ws['A{a}'.format(a = str(inicio + 1))].value, ws['B{a}'.format(a = str(inicio + 1))].value, ws['C{a}'.format(a = str(inicio + 1))].value)
+            codm = ws['A{a}'.format(a=str(inicio + 1))].value
+            nom = ws['B{a}'.format(a=str(inicio + 1))].value
+            semes = ws['C{a}'.format(a=str(inicio + 1))].value
+
+            list.append({
+                'cod': codm,
+                'materia': nom,
+                'semestre': semes,
+            })
+            inicio += 1
+            cargmateria = models.Materias(materia_codigo = codm, materia_descrip = nom, semestre_id = semes)
+            session.add(cargmateria)
+    cant_a = inicio - 1
+    session.commit()
+    session.close()
+    json_data = jsonify(list)
+    return json_data
+
 
 
 

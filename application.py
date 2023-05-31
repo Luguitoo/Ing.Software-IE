@@ -1,5 +1,9 @@
-﻿from flask import Flask, url_for, redirect, render_template, send_file, request
+﻿from flask import Flask, url_for, redirect, render_template, send_file, request, session
 from config import DevConfig
+from database.conexion import *
+from database.models import *
+from database import models
+
 import sqlite3
 import os
 from datetime import datetime
@@ -16,7 +20,7 @@ import pandas as pd
 from flask import jsonify
 #database con sqlalchemy
 from database import models
-from sqlalchemy import text
+from sqlalchemy import text, update
 from database.conexion import engine
 from database.conexion import SessionLocal
 from sqlalchemy import func
@@ -349,6 +353,96 @@ def historial(mat:str):
     print(historial)
     return render_template('historial.html', historial = historial, alumno = alumno)
 
+
+@app.route('/cargar_materias')
+def cargadematerias():
+   
+    return render_template('cargarmaterias.html')
+
+@app.route('/read_materias', methods=['POST'])
+def read_materias():
+    
+    if request.method == 'POST':
+        cant_a = 0
+        cont = 0
+        session = SessionLocal()
+        archivo = request.files['archivo']
+        if "archivo" not in request.files:
+            print("No se envió ningún archivo")
+            return "No se envió ningún archivo"
+        elif archivo.filename == "":
+            print("No se seleccionó ningún archivo")
+            return "No se seleccionó ningún archivo"
+        #Cargamos el archivo
+        wb = load_workbook(archivo)
+        ws = wb["Hoja1"]
+        inicio = 1
+        list = []
+        b = True
+        print("Todo bien")
+
+        print('Cod, Mate, Semes')
+    while b:
+        if not ws['A{a}'.format(a=str(inicio + 1))].value:
+            b = False
+        else:
+            print(ws['A{a}'.format(a = str(inicio + 1))].value, ws['B{a}'.format(a = str(inicio + 1))].value, ws['C{a}'.format(a = str(inicio + 1))].value)
+            codm = ws['A{a}'.format(a=str(inicio + 1))].value
+            nom = ws['B{a}'.format(a=str(inicio + 1))].value
+            semes = ws['C{a}'.format(a=str(inicio + 1))].value
+
+            list.append({
+                'cod': codm,
+                'materia': nom,
+                'semestre': semes,
+            })
+            inicio += 1
+            cargmateria = models.Materias(materia_codigo = codm, materia_descrip = nom, semestre_id = semes)
+            session.add(cargmateria)
+    cant_a = inicio - 1
+    session.commit()
+    session.close()
+    json_data = jsonify(list)
+    return json_data
+
+
+
+@app.route('/cant_inscriptos/<int:id>')
+def cant_inscriptos(id):
+    session = SessionLocal()
+    datos = []
+    semestre = session.query(models.Semestre).count()
+    id_cohorte = session.query(models.Cantidad_inscript.cohorte_id).filter(models.Cantidad_inscript.cohorte_id == id, models.Cantidad_inscript.semestre == 1).scalar()
+    print(id_cohorte)
+    #Verifica si realmente existe esa cohorte en la bd
+    cohorte = session.query(models.Cohortes.cohorte_id).filter(models.Cohortes.cohorte_id == id).scalar()
+    print(cohorte)
+    if not id_cohorte and cohorte:
+        for x in range(1, semestre + 1):
+            nuevo = models.Cantidad_inscript(cohorte_id = id, semestre = x, cantidad = 0 )
+            session.add(nuevo)
+            session.commit()
+    #si existe el primer registro, creo que se debería de crear el resto en 0
+    #O al cargar los incriptos del primer semestre ya se puede inicializar el resto en 0
+    datos = session.query(models.Cantidad_inscript.semestre, models.Cantidad_inscript.cantidad).filter(models.Cantidad_inscript.cohorte_id == id).all()
+    print(datos) 
+    session.close()
+    return render_template("cant_incriptos.html", datos=datos, id=id)
+@app.route("/actualizar_cantidad", methods=['POST'])
+def actualizar_cantidad():
+    session = SessionLocal()
+    semestre = session.query(models.Semestre).count()
+    id = request.form["id_cohorte"]
+    for x in range(1, semestre + 1):
+        registro = session.query(models.Cantidad_inscript).get((id, x))    
+        try:
+            cant = request.form["cant_"+str(x)]
+            registro.cantidad = cant
+            session.commit()
+        except:
+            return("Error")
+    session.close()
+    return("GUARDADO")
 
 if __name__=='__main__':
     app.run(debug = True, port= 8000)

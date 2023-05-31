@@ -13,6 +13,7 @@ from openpyxl.styles import PatternFill
 import pandas as pd
 #Json
 from flask import jsonify
+import json
 #database con sqlalchemy
 from database import models
 from sqlalchemy import text, update
@@ -269,6 +270,37 @@ def read_materias():
     session.close()
     json_data = jsonify(list)
     return json_data
+
+@app.route("/salidas", methods=['GET', 'POST'])
+def salidas():
+    session = SessionLocal()
+    cohortes = session.query(models.Cohortes.cohorte_id,
+                             models.Cohortes.cohorte_inicio,
+                             models.Cohortes.cohorte_fin).all()
+    semestres = session.query(models.Semestre.semestre_id).all()
+    session.close()
+    if request.method == "POST":
+        cohorte_id = request.form['cohorte_id']
+        semestre_inicio = int(request.form['semestre_inicio'])
+        semestre_fin = int(request.form['semestre_fin'])
+        print(cohorte_id,semestre_inicio,semestre_fin)
+        respuestas = {}
+        respuestas["eficiencias"] = eficiencias(cohorte_id, session)
+        respuestas["tasa_promocion_semestral"] = tasa_promocion_semestral(cohorte_id, semestre_inicio, semestre_fin, session)
+        for i in range(semestre_inicio//2 + 1, semestre_fin//2 + 1):
+          respuestas[f"tasa_promocion_anual_{i}"] = tasa_promocion_anual(cohorte_id, i, session)
+
+        for i in range(semestre_inicio, semestre_fin + 1):
+          respuestas[f"tasa_desercion_semestral_{i}"] = tasa_desercion_semestral(cohorte_id, i, session)
+          respuestas[f"tasa_retencion_{i}"] = tasa_retencion(cohorte_id, i, session)
+
+        respuestas["tasa_desercion_generacional"] = tasa_desercion_generacional(cohorte_id, session)
+        json_data = json.dumps(respuestas)
+
+        # Mostrar la cadena json por pantalla
+        return render_template('salidas.html', cohortes = cohortes, semestres = semestres, json_data = json_data)
+    else:
+        return render_template('salidas.html', cohortes = cohortes, semestres = semestres, json_data = "")
 
 
 

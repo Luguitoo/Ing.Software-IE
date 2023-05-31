@@ -1,6 +1,5 @@
-﻿#from application import session
-from database import models
-from sqlalchemy import text, outerjoin, and_
+﻿from database import models
+from sqlalchemy import text, and_
 
 def get_EIIC(cohorte, session):
     # EIIC: Número de estudiantes que se inscriben al primer curso de la carrera
@@ -43,6 +42,8 @@ def get_ECE(cohorte,session):
         HAVING COUNT(CASE WHEN h.nota_max >= 2 THEN h.materia_codigo ELSE NULL END) = (SELECT COUNT(*) FROM materias)
     ) AS t
     """)).scalar()
+    if ECE == None:
+        ECE = 0
     return ECE
 
 def get_Ei(cohorte, semestre, session):

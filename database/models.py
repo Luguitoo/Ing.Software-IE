@@ -63,7 +63,7 @@ def insert_estados(engine):
     engine.commit()
 
 def insert_test_data(engine): #Esta función es temporal, solo para cargar los datos de prueba
-    for i in range(1,10): #Semestres
+    for i in range(1,11): #Semestres
         stmt = Semestre.__table__.insert()
         stmt = stmt.prefix_with("OR IGNORE")
         engine.execute(stmt, [{"semestre_id": i}])

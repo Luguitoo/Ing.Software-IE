@@ -20,6 +20,7 @@ class Alumnos(Base):
     alumno_nombre = Column(String(20), nullable=False)
     cohorte_id = Column(Integer, ForeignKey('cohortes.cohorte_id'))
     estado_id = Column(Integer, ForeignKey('estados.estado_id'), default = 1)
+    ult_act = Column(Date) #fecha de ultima actualización de notas del alumnos
 
 class Semestre(Base):
     __tablename__ = 'semestre'

@@ -42,6 +42,97 @@ dbtest = sqlite3.connect('NombreDeLaDB.db')
 alumnos=[] #para la cargar de alumnos (ver /loadSt)
 data = []  #para la carga del historial de materias (ver /histAl)
 
+#leer el/los excel de las notas, guarda en la db y devuelve un js con los datos leidos
+#si se carga varios excel solo devuelve el json del ultimo
+def leer_excel_notas(archivos):
+    session = SessionLocal()
+    try:
+        for archivo in archivos:
+            df = pd.read_excel(archivo)
+            # Guardar el archivo XLSX
+            archivo_xlsx = f"./static/resources/{archivo.filename}.xlsx"
+            df.to_excel(archivo_xlsx, index=False)
+            wb = load_workbook('./static/resources/{a}.xlsx'.format(a = archivo.filename))
+            ws = wb["Sheet1"]
+            nomb = ws['C2'].value
+            matr = ws['C3'].value
+            matr = matr.split("/")[-1].strip() # esto devuelve la segunda matrícula
+            print(f"Alumno: {nomb}, matricula: {matr}")
+            #elimina de ls bd todos las calificaciones anteriores
+            #capaz update sea mejor
+            historial = session.query(models.Historial).filter(models.Historial.matricula == matr).all() #Se corrigió un error en el que no se eliminaba el historial viejo
+            if historial:
+                    for i in historial:
+                        session.delete(i)
+                        session.flush()
+            inicio = 4
+            cont = 0
+            
+            b = True
+            data = []  # Lista para almacenar los datos
+            while b:
+                if not ws['A{a}'.format(a=str(inicio + 1))].value:
+                    cont += 1
+                    if cont > 1:
+                        b = False
+                else:
+                    mat = ws['A{a}'.format(a=str(inicio + 1))].value
+                    cod = ws['D{a}'.format(a=str(inicio + 1))].value
+                    opo = ws['E{a}'.format(a=str(inicio + 1))].value
+                    nota = ws['F{a}'.format(a=str(inicio + 1))].value
+                    nota = nota.split(':')[0].strip()
+                    act = ws['G{a}'.format(a=str(inicio + 1))].value
+                    fec = ws['H{a}'.format(a=str(inicio + 1))].value
+                    data.append(
+                    {
+                        'alu': ws['C2'].value,
+                        'matr': matr,
+                        'mat': mat,
+                        'cod': cod,
+                        'opo': opo,
+                        'nota': nota,
+                        'act': act,
+                        'fec': fec
+                    })
+                    #carga la nueva calificación a bd
+                    date = datetime.strptime(fec, '%d/%m/%Y')
+                    newhistorial = models.Historial(matricula = matr, materia_codigo = cod, nota = nota, oportunidad = opo, fecha_examen = date)
+                    alumno = session.query(models.Alumnos).filter(models.Alumnos.matricula == matr).first()
+                    now = datetime.now()
+                    alumno.ult_act = now
+                    session.add(newhistorial)
+                    session.flush()
+                inicio += 1
+            # Convertir a JSON
+        
+    except:
+        try:
+            os.remove('./static/resources/{a}.xlsx'.format(a = archivo.filename)) #elimina el excel del sistema
+            session.close()
+            return None
+        except:
+            session.close()
+            return None
+    session.commit()
+    session.close()
+    return data
+
+##funcion agregar alumno, pq puede dar error
+def agregar_alumno(matricula, nombre, id_cohor):
+    if matricula:
+        session = SessionLocal()
+        # Realizar alguna advertencia si es que ya existe el alumno
+        alumno = session.query(models.Alumnos).filter(models.Alumnos.matricula == matricula).first()
+        #la advertencia
+        if alumno:
+            alumno.alumno_nombre = nombre
+            alumno.cohorte_id = id_cohor
+            session.commit()
+        else:
+            new_alumno = models.Alumnos(matricula=matricula, alumno_nombre=nombre, cohorte_id=id_cohor)
+            session.add(new_alumno)
+            session.commit()
+        return True
 @app.route('/')
 def index():
     session = SessionLocal()
@@ -133,13 +224,18 @@ def read_excel():
     data = []  # Lista para almacenar los datos
 
     #Carga la cohorte si no existe
-    id_cohor = session.query(models.Cohortes.cohorte_id).filter(models.Cohortes.cohorte_inicio == inic).scalar()
+    id_cohor = session.query(models.Cohortes.cohorte_id).filter(models.Cohortes.cohorte_inicio == inic).first()
     if not id_cohor: #Falta alguna advertencia si es que ya existe la cohorte
         newcohorte = models.Cohortes(cohorte_inicio = inic,cohorte_fin = fin)
         session.add(newcohorte)
         session.flush()
-        session.commit()
-
+        id_cohor = session.query(models.Cohortes.cohorte_id).filter(models.Cohortes.cohorte_inicio == inic).first()
+    else:
+        #si ya existe la cohorte elimina todos los alumnos con esa cohorte para luego poder actualizar su listado
+        coh = session.query(models.Alumnos).filter(models.Alumnos.cohorte_id == id_cohor[0]).all()
+        for i in coh:
+            session.delete(i)
+            session.commit()
     print('N, Matr, Name')
     while b:
         if not ws['A{a}'.format(a=str(inicio + 1))].value:
@@ -150,7 +246,6 @@ def read_excel():
             matricula = ws['B{a}'.format(a=str(inicio + 1))].value
             nombre = ws['D{a}'.format(a=str(inicio + 1))].value
             alumnos.append(nombre)
-
             data.append({
                 'num': num,
                 'matricula': matricula,
@@ -159,7 +254,9 @@ def read_excel():
             inicio += 1
             matric = session.query(models.Alumnos.matricula).filter(models.Alumnos.matricula == matricula).scalar()
             # Llamar a la función agregar_alumno dentro de un bucle de eventos asyncio
-            asyncio.run(agregar_alumno(matricula, nombre, id_cohor))
+            alu = agregar_alumno(matricula, nombre, id_cohor[0])
+            if alu == None:
+                return "El Alumno con matricula "+ str(matricula) + " ya está registrando en otra cohorte", 400
     cant_a = inicio - 1
     ##print(cant_a)
     session.commit()
@@ -168,18 +265,10 @@ def read_excel():
     # Convertir a JSON
     json_data = jsonify(data)
     return json_data
-##funcion agregar alumno, pq puede dar error
-async def agregar_alumno(matricula, nombre, id_cohor):
-    if not matricula:
-        session = SessionLocal()
-        # Realizar alguna advertencia si es que ya existe el alumno
-        new_alumno = models.Alumnos(matricula=matricula, alumno_nombre=nombre, cohorte_id=id_cohor[0])
-        session.add(new_alumno)
-        await session.flush()
 
 ##Leer notas del excel, terminado lugo
 @app.route('/read_all_notas', methods=['POST'])
-def read_notas():
+def read_all_notas():
     session = SessionLocal()
     archivos = request.files.getlist("archivo")
     if "archivo" not in request.files:
@@ -187,80 +276,38 @@ def read_notas():
         return "No se envió ningún archivo"
     
     #archivo = request.files['archivo']
-    for archivo in archivos:
-        print(archivo.filename)
-        if archivo.filename == "":
-            print("No se seleccionó ningún archivo")
-            return "No se seleccionó ningún archivo"
-        # Cargamos el archivo
-        # Leer el archivo XLS con pandas
-        df = pd.read_excel(archivo)
-        # Guardar el archivo XLSX
-        archivo_xlsx = f"./static/resources/{archivo.filename}.xlsx"
-        df.to_excel(archivo_xlsx, index=False)
-        
-        try:
-            wb = load_workbook('./static/resources/{a}.xlsx'.format(a = archivo.filename))
-            ws = wb["Sheet1"]
-            nomb = ws['C2'].value
-            matr = ws['C3'].value
-            matr = matr.split("/")[-1].strip() # esto devuelve la segunda matrícula
-            print(f"Alumno: {nomb}, matricula: {matr}")
-            #elimina de ls bd todos las calificaciones anteriores
-            #capaz update sea mejor
-            historial = session.query(models.Historial).filter(models.Historial.matricula == matr) #Se corrigió un error en el que no se eliminaba el historial viejo
-            if historial.count() > 0:
-                historial.delete()
-                session.commit()
-            inicio = 4
-            cont = 0
-            b = True
-            data = []  # Lista para almacenar los datos
-
-            while b:
-                if not ws['A{a}'.format(a=str(inicio + 1))].value:
-                    cont += 1
-                    if cont > 1:
-                        b = False
-                else:
-                    mat = ws['A{a}'.format(a=str(inicio + 1))].value
-                    cod = ws['D{a}'.format(a=str(inicio + 1))].value
-                    opo = ws['E{a}'.format(a=str(inicio + 1))].value
-                    nota = ws['F{a}'.format(a=str(inicio + 1))].value
-                    nota = nota.split(':')[0].strip()
-                    act = ws['G{a}'.format(a=str(inicio + 1))].value
-                    fec = ws['H{a}'.format(a=str(inicio + 1))].value
-                    data.append(
-                    {
-                        'alu': ws['C2'].value,
-                        'mat': mat,
-                        'cod': cod,
-                        'opo': opo,
-                        'nota': nota,
-                        'act': act,
-                        'fec': fec
-                    })
-                    #carga la nueva calificación a bd
-                    date = datetime.strptime(fec, '%d/%m/%Y')
-                    newhistorial = models.Historial(matricula = matr, materia_codigo = cod, nota = nota, oportunidad = opo, fecha_examen = date)
-                    session.add(newhistorial)
-                    session.flush()
-                inicio += 1
-            # Convertir a JSON
-            json_data = jsonify(data)
-            os.remove('./static/resources/{a}.xlsx'.format(a = archivo.filename)) #elimina el excel del sistema
-            #print(json_data)
-            #coomit de la bd y cierre de sesión
-            id_cohorte = session.query(models.Alumnos.cohorte_id).filter(models.Alumnos.matricula==matr).first()
-        except:
-            os.remove('./static/resources/{a}.xlsx'.format(a = archivo.filename)) #elimina el excel del sistema
-            session.close()
-            return {'msg': 'Ocurrió un error a leer el documento'}
+    result = leer_excel_notas(archivos)
+    if result == None:
+        print('Ocurrio un error al procesar el documentos')
+        return 'Ocurrio un error al procesar el documentos', 500
+    print(result)
+    id_cohorte = session.query(models.Alumnos.cohorte_id).filter(models.Alumnos.matricula==result[0]['matr']).first()
     session.commit()
     session.close()
     print(id_cohorte)
     return redirect('/selCoh?cid='+str(id_cohorte[0]))
 
+@app.route('/read_notas', methods=['POST'])
+def read_notas():
+    session = SessionLocal()
+    if "archivo" not in request.files:
+        print("No se envió ningún archivo")
+        return "No se envió ningún archivo", 400
+    archivo = request.files.getlist("archivo")
+    if archivo[0].filename == "":
+        print("No se seleccionó ningún archivo")
+        return "No se seleccionó ningún archivo", 400
+    print(archivo[0].filename)
+    #si devuelve none es porque ocurrio un error en la lectura
+    data = leer_excel_notas(archivo)
+    if data == None:
+        print("Ocurrió un error al leer el documento")
+        return "Ocurrió un error al leer el documento", 500
+    #coomit de la bd y cierre de sesión
+    json_data = jsonify(data)
+    session.commit()
+    session.close()
+    return json_data
 
 #Ver historial de asignaturas del alumno
 import re
@@ -299,6 +346,7 @@ def historial(mat:str):
         historial.append(estado)
     alumno = session.query(models.Alumnos).filter(models.Alumnos.matricula == mat).first()
     session.close()
+    print(historial)
     return render_template('historial.html', historial = historial, alumno = alumno)
 
 

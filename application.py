@@ -54,9 +54,9 @@ def leer_excel_notas(archivos):
         for archivo in archivos:
             df = pd.read_excel(archivo)
             # Guardar el archivo XLSX
-            archivo_xlsx = f"./static/resources/{archivo.filename}.xlsx"
+            archivo_xlsx = f"./static/temp/{archivo.filename}.xlsx"
             df.to_excel(archivo_xlsx, index=False)
-            wb = load_workbook('./static/resources/{a}.xlsx'.format(a = archivo.filename))
+            wb = load_workbook('./static/temp/{a}.xlsx'.format(a = archivo.filename))
             ws = wb["Sheet1"]
             nomb = ws['C2'].value
             matr = ws['C3'].value
@@ -111,7 +111,7 @@ def leer_excel_notas(archivos):
         
     except:
         try:
-            os.remove('./static/resources/{a}.xlsx'.format(a = archivo.filename)) #elimina el excel del sistema
+            os.remove('./static/temp/{a}.xlsx'.format(a = archivo.filename)) #elimina el excel del sistema
             session.close()
             return None
         except:
@@ -137,6 +137,19 @@ def agregar_alumno(matricula, nombre, id_cohor):
             session.add(new_alumno)
             session.commit()
         return True
+@app.before_request
+def verif_materias():
+    session = SessionLocal()
+    current_endpoint = request.endpoint
+    print(current_endpoint)
+    if current_endpoint != 'cargadematerias' and current_endpoint != 'read_materias' and current_endpoint != 'static':
+        materias = session.query(models.Materias).all()
+        if not materias:
+            app.jinja_env.globals['alert_message'] = "Antes de usar el sistema debe de cargar el listado de asignaturas"
+            session.close()
+            return redirect('/cargar_materias')
+    session.close()
+
 @app.route('/')
 def index():
     session = SessionLocal()
@@ -167,7 +180,7 @@ def selCoh():
         cohortes = session.query(models.Cohortes).all()
         cohorte = session.query(models.Cohortes).filter(models.Cohortes.cohorte_id==cid).first()
         session = SessionLocal()
-        return render_template('cohortes.html', data=alumnos, coh=cohorte, cohortes = cohortes)
+        return render_template('cohortes.html', data=alumnos, coh=cohorte, cohortes = cohortes, coh_id = cid)
 
     #for i in range(1,8):
     #    print(tasa_promocion_semestral(1, i, session))
@@ -198,7 +211,11 @@ def notas():
 @app.route('/download_template', methods = ['GET', 'POST'])
 def download_template():
     if request.method == "POST":
-        return send_file('./static/resources/IE-CyT.xlsx', as_attachment=True)
+        return send_file('./static/temp/IE-CyT.xlsx', as_attachment=True)
+
+@app.route('/download_template_mat', methods = ['GET', 'POST'])
+def download_template_mat():
+        return send_file('./static/temp/materias.xlsx', as_attachment=True) 
     
 ##Leer excel de alumnos y carga en el front, terminado Lugo
 @app.route('/read_excel', methods=['POST']) 
@@ -256,12 +273,14 @@ def read_excel():
                 'nombre': nombre,
             })
             inicio += 1
-            matric = session.query(models.Alumnos.matricula).filter(models.Alumnos.matricula == matricula).scalar()
+            #matric = session.query(models.Alumnos.matricula).filter(models.Alumnos.matricula == matricula).scalar()
             # Llamar a la función agregar_alumno dentro de un bucle de eventos asyncio
             alu = agregar_alumno(matricula, nombre, id_cohor[0])
             if alu == None:
                 return "El Alumno con matricula "+ str(matricula) + " ya está registrando en otra cohorte", 400
     cant_a = inicio - 1
+    cant_matriculados = models.Cantidad_inscript(cohorte_id = id_cohor[0], semestre_id = 1, cantidad = cant_a)
+    session.add(cant_matriculados)
     ##print(cant_a)
     session.commit()
     session.close()
@@ -325,7 +344,7 @@ def extraer_numero(string):
 def historial(mat:str):
     session = SessionLocal()
     semestres =  session.query(func.count(models.Semestre.semestre_id)).first()
-    materias = session.query(models.Materias.materia_codigo, models.Materias.materia_descrip, models.Semestre.semestre_id).join(models.Semestre).order_by(models.Semestre.semestre_id).all()
+    materias = session.query(models.Materias.materia_codigo, models.Materias.materia_descrip, models.Materias.semestre_id).order_by(models.Materias.semestre_id).all()
     historial = []
     for materia in materias:
         calif = session.query(models.Historial).filter(models.Historial.matricula==mat.upper(), models.Historial.materia_codigo == materia[0]).all()
@@ -356,12 +375,16 @@ def historial(mat:str):
 
 @app.route('/cargar_materias')
 def cargadematerias():
-   
-    return render_template('cargarmaterias.html')
+    session = SessionLocal()
+    materias = session.query(models.Materias).order_by(models.Materias.semestre_id).all()
+    session.close()
+    #mensaje de error en pantalla
+    alert_message = app.jinja_env.globals.get('alert_message')
+    app.jinja_env.globals.pop('alert_message', None)
+    return render_template('cargarmaterias.html', materias=materias, alert_message = alert_message)
 
 @app.route('/read_materias', methods=['POST'])
-def read_materias():
-    
+def read_materias(): 
     if request.method == 'POST':
         cant_a = 0
         cont = 0
@@ -382,28 +405,48 @@ def read_materias():
         print("Todo bien")
 
         print('Cod, Mate, Semes')
-    while b:
-        if not ws['A{a}'.format(a=str(inicio + 1))].value:
-            b = False
-        else:
-            print(ws['A{a}'.format(a = str(inicio + 1))].value, ws['B{a}'.format(a = str(inicio + 1))].value, ws['C{a}'.format(a = str(inicio + 1))].value)
-            codm = ws['A{a}'.format(a=str(inicio + 1))].value
-            nom = ws['B{a}'.format(a=str(inicio + 1))].value
-            semes = ws['C{a}'.format(a=str(inicio + 1))].value
-
-            list.append({
-                'cod': codm,
-                'materia': nom,
-                'semestre': semes,
-            })
-            inicio += 1
-            cargmateria = models.Materias(materia_codigo = codm, materia_descrip = nom, semestre_id = semes)
-            session.add(cargmateria)
-    cant_a = inicio - 1
-    session.commit()
-    session.close()
-    json_data = jsonify(list)
-    return json_data
+        semestres = session.query(models.Semestre).all()
+        for i in semestres:
+            session.delete(i)
+            session.flush()
+        materias = session.query(models.Materias).all()
+        for i in materias:
+            session.delete(i)
+            session.flush()
+        may = 0
+        while b:
+            if not ws['A{a}'.format(a=str(inicio + 1))].value:
+                b = False
+            else:
+                print(ws['A{a}'.format(a = str(inicio + 1))].value, ws['B{a}'.format(a = str(inicio + 1))].value, ws['C{a}'.format(a = str(inicio + 1))].value)
+                codm = ws['A{a}'.format(a=str(inicio + 1))].value
+                nom = ws['B{a}'.format(a=str(inicio + 1))].value
+                semes = ws['C{a}'.format(a=str(inicio + 1))].value
+                list.append({
+                    'cod': codm,
+                    'materia': nom,
+                    'semestre': semes,
+                })
+                inicio += 1
+                if semes < 1:
+                    return "Error, los semestres no pueden ser menores a 1", 400
+                if semes > may:
+                    may = semes
+                cargmateria = models.Materias(materia_codigo = codm, materia_descrip = nom, semestre_id = semes)
+                session.add(cargmateria)
+                session.flush()
+        cant_a = inicio - 1
+        semes = session.query(models.Semestre).all()
+        for i in semes:
+            session.delete(semes)
+            session.flush()
+        for i in range(may):
+            cant_semes = models.Semestre(semestre_id = i+1)
+            session.add(cant_semes)
+        session.commit()
+        session.close()
+        json_data = jsonify(list)
+        return json_data
 
 
 
@@ -412,19 +455,20 @@ def cant_inscriptos(id):
     session = SessionLocal()
     datos = []
     semestre = session.query(models.Semestre).count()
-    id_cohorte = session.query(models.Cantidad_inscript.cohorte_id).filter(models.Cantidad_inscript.cohorte_id == id, models.Cantidad_inscript.semestre == 1).scalar()
+    print(semestre)
+    id_cohorte = session.query(models.Cantidad_inscript.cohorte_id).filter(models.Cantidad_inscript.cohorte_id == id, models.Cantidad_inscript.semestre_id == 1).scalar()
     print(id_cohorte)
     #Verifica si realmente existe esa cohorte en la bd
     cohorte = session.query(models.Cohortes.cohorte_id).filter(models.Cohortes.cohorte_id == id).scalar()
     print(cohorte)
     if not id_cohorte and cohorte:
         for x in range(1, semestre + 1):
-            nuevo = models.Cantidad_inscript(cohorte_id = id, semestre = x, cantidad = 0 )
+            nuevo = models.Cantidad_inscript(cohorte_id = id, semestre_id = x, cantidad = 0 )
             session.add(nuevo)
-            session.commit()
+            session.flush()
     #si existe el primer registro, creo que se debería de crear el resto en 0
-    #O al cargar los incriptos del primer semestre ya se puede inicializar el resto en 0
-    datos = session.query(models.Cantidad_inscript.semestre, models.Cantidad_inscript.cantidad).filter(models.Cantidad_inscript.cohorte_id == id).all()
+    #O al cargar los incriptos del primer semestre ya se puede inicializar el resto en 0 -> no se debería de hacer eso
+    datos = session.query(models.Cantidad_inscript.semestre_id, models.Cantidad_inscript.cantidad).filter(models.Cantidad_inscript.cohorte_id == id).all()
     print(datos) 
     session.close()
     return render_template("cant_incriptos.html", datos=datos, id=id)

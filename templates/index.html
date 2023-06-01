@@ -83,7 +83,7 @@
               <label for="exampleSelect1" class="form-label mt-4">Periodo</label>
               <select class="form-select" id="exampleSelect1" name="cid">
                 {% for c in data %}
-                <option value="{{c.cohorte_id}}">{{c.cohorte_inicio}} - {{c.cohorte_fin}}</option>
+                  <option value="{{c.cohorte_id}}">{{c.cohorte_inicio}} - {{c.cohorte_fin}}</option>
                 {% endfor %}
               </select>
             </div>

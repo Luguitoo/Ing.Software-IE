@@ -289,12 +289,14 @@ def salidas():
         semestral = []
         for i in range(semestre_inicio//2 + 1, semestre_fin//2 + 1):
           anual.append({
-              f"{i}": tasa_promocion_anual(cohorte_id,i,session),
+              "anho" : i,
+              i: tasa_promocion_anual(cohorte_id,i,session),
           })
 
         for i in range(semestre_inicio, semestre_fin + 1):
           semestral.append({
-              f"{i}": {
+              "semestre" : i,
+              i: {
                   "desercion" : tasa_desercion_semestral(cohorte_id,i,session),
                   "retencion" : tasa_retencion(cohorte_id,i,session),
               },
@@ -304,7 +306,7 @@ def salidas():
             "desercion_generacional" : tasa_desercion_generacional(cohorte_id, session),
             "promocion_semestral" : tasa_promocion_semestral(cohorte_id, semestre_inicio, semestre_fin, session),
             "anuales" : anual,
-            "semestral" : semestral,
+            "semestrales" : semestral,
         })
 
 
@@ -313,10 +315,13 @@ def salidas():
         print(json_data)
 
         # Mostrar la cadena json por pantalla
-        return render_template('salidas.html', cohortes = cohortes, semestres = semestres, json_data = respuesta[0])
+        return render_template('salidas.html', cohortes = cohortes, semestres = semestres, 
+                               json_data = respuesta[0], cohorte_id = cohorte_id, 
+                               semestre_inicio = semestre_inicio, semestre_fin = semestre_fin)
     else:
-        return render_template('salidas.html', cohortes = cohortes, semestres = semestres, json_data = "")
-
+        return render_template('salidas.html', cohortes = cohortes, semestres = semestres, 
+                               json_data = "", sel_cohorte = "", 
+                               semestre_inicio = "", semestre_fin = "")
 
 
 @app.route('/cant_inscriptos/<int:id>')

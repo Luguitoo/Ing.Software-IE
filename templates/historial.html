@@ -1,0 +1,59 @@
+{% extends "base.html" %}
+{% block css %}
+<link rel="stylesheet" href="/static/DataTables-1.13.4/css/jquery.dataTables.css">
+<link rel="stylesheet" href="/static/DataTables-1.13.4/RowGroup-1.3.1/css/rowGroup.bootstrap5.min.css">
+{% endblock %}
+{% block content %}
+<div class="container">
+    <div class="pagetitle mt-3">
+        <h1>Historial Academico</h1>
+        <p class="fw-bold">Alumno: <span class="fw-normal">{{alumno.alumno_nombre}}</span></p>
+    </div>
+    <div class="table-responsive mt-3">
+        <table class="table table-light" id="historial">
+            <thead class="table-primary">
+                <tr>
+                    <th scope="col">Codigo</th>
+                    <th scope="col">Asignatura</th>
+                    <th scope="col">Estado</th>
+                    <th>Semestre</th>
+                </tr>
+            </thead>
+            <tbody>
+                {% for estado in historial %}
+                <tr class="">
+                    <td>{{estado.codigo}}</td>
+                    <td>{{estado.descripcion}}</td>
+                    <td>{{estado.estado}}</td>
+                    <td>{{estado.semestre}}</td>
+                </tr>
+                {% endfor %}
+            </tbody>
+        </table>
+    </div>
+    
+</div>
+{% endblock%}
+{% block js%}
+<script src="/static/jQuery-3.6.0/jquery-3.6.0.min.js"></script>
+<script src="/static/DataTables-1.13.4/datatables.min.js"></script>
+<script src="/static/DataTables-1.13.4/RowGroup-1.3.1/js/rowGroup.bootstrap5.js"></script>
+<script>
+    $(document).ready(function () {
+        $('#historial').DataTable({
+            language: spanish,
+            order: [[3, 'asc']],
+                rowGroup: {
+                dataSrc: 3
+            },
+            columnDefs: [
+            {
+                target: 3,
+                visible: false,
+            }
+            ]
+            
+        });
+    });
+</script>
+{% endblock %}

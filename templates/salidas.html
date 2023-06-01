@@ -1,30 +1,5 @@
-<!DOCTYPE html>
-<html lang="en">
-
-<head>
-    <meta charset="UTF-8">
-    <title>Indice de Eficiencia - CyT</title>
-    <!--Boostrap CSS-->
-    <link rel="stylesheet" href="https://bootswatch.com/5/lumen/bootstrap.min.css">
-    <!---Boostrap Icons-->
-    <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.9.1/font/bootstrap-icons.css">
-    <!---Theme: https://bootswatch.com/lumen/  c: -->
-    <link rel="stylesheet" href="/static/css/index.css">
-</head>
-<body>
-    <!--Nav-->
-    <nav class="navbar navbar-expand-lg navbar-dark bg-primary">
-        <div class="container-fluid">
-            <div class="collapse navbar-collapse" id="navbarColor01">
-                <ul class="navbar-nav me-auto">
-                    <li class="nav-item">
-                        <a class="navbar-brand" href="/"><img src="/static/resources/logo.png" width="150"></a>
-                    </li>
-                </ul>
-            </div>
-        </div>
-    </nav>
-    <!--End Nav-->
+{% extends "base.html" %}
+{% block content %}
     <!---Main content-->
     <div class="main-container">
         <div class="container">
@@ -103,12 +78,7 @@
         <!--<p>{{json_data}}</p>-->
     </div>
     <script>
-
-    </script>
-    <!--End main content-->
-    <!--Boostrap JS-->
-    <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0-alpha3/dist/js/bootstrap.bundle.min.js"></script>
-    <!--JS-->
+{% endblock %}
+{% block js %}
     <script src="/static/js/salidas.js"></script>
-</body>
-</html>
+{% endblock %}

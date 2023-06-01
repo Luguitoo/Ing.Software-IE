@@ -20,6 +20,7 @@ class Alumnos(Base):
     alumno_nombre = Column(String(20), nullable=False)
     cohorte_id = Column(Integer, ForeignKey('cohortes.cohorte_id'))
     estado_id = Column(Integer, ForeignKey('estados.estado_id'), default = 1)
+    ult_act = Column(Date) #fecha de ultima actualización de notas del alumnos
 
 class Semestre(Base):
     __tablename__ = 'semestre'
@@ -147,7 +148,7 @@ def insert_test_data(engine): #Esta función es temporal, solo para cargar los d
         [
             {"matricula": "Y20840", "alumno_nombre": "Pintos Villasboa, Elias David", "cohorte_id": 1},
             {"matricula": "Y20813", "alumno_nombre": "Fernández Ojeda, Fernando Obdulio", "cohorte_id": 1},
-            {"matricula": "Y28923", "alumno_nombre": "Ríos Nicoli, Brian Martin", "cohorte_id": 1}
+            {"matricula": "Y19780", "alumno_nombre": "Ríos Nicoli, Brian Martin", "cohorte_id": 1}
         ]
     )
     engine.flush()

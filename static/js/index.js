@@ -45,6 +45,11 @@ uploadButton.addEventListener('click', () => {
           tableBody.appendChild(row);
         }
       }
+      else{
+        if(xhr.status == 400){
+          alert(xhr.responseText)
+        }
+      }
     };
     xhr.send(formData);
   }

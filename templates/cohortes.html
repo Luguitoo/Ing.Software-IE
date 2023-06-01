@@ -1,0 +1,92 @@
+{% extends "base.html" %}
+{% block content %}
+
+<div class="container">
+  <div class="pagetitle mt-3">
+    <h1> Cohorte: {{coh.cohorte_inicio}}</h1>
+</div>
+<div class="mb-3">
+</div>
+<form method="POST" action="/read_all_notas" enctype="multipart/form-data">
+  <label for="archivo" class="form-label">Cargar Historial</label>
+  <input type="file"
+    class="form-control" name="archivo" id="fileInput" multiple aria-describedby="helpId" placeholder="">
+  <small id="helpId" class="form-text text-muted">Puede cargar mas de uno a la vez</small><br>
+  <input id="uploadButton" class="btn btn-primary" type="submit" value="Subir Planilla/s">
+  <button type="button" class="btn btn-warning" data-bs-toggle="modal" data-bs-target="#cohortes">
+    Cohortes
+  </button>
+  <a name="" id="" class="btn btn-primary" href="/cant_inscriptos/{{coh_id}}" role="button">Inscripciones semestrales</a>
+  <a name="" id="" class="btn btn-success" href="/" role="button">Agregar Cohorte</a>
+</form>
+<br>
+<table class="table table-hover">
+  <thead>
+    <tr style="background: skyblue">
+      <td>Matricula</td>
+      <td>Alumno</td>
+      <td>Actualizado</td>
+      <td>Ver Historial</td>
+    </tr>
+  </thead>
+  <tbody>
+    {% if data != None%}
+    {% for al in data %}
+    <tr>
+      <td>{{al.0}}</td>
+      <td>{{al.1}}</td>
+      {% if al.4 == None %}
+        <td>Sin registros</td>
+      {% else %}
+        <td>{{al.4}}</td>
+      {% endif %}
+      <td>
+        <a type="button" class="btn btn-warning" href="historial/{{al.0}}">Ver Historial</a>
+      </td>
+    </tr>
+    {% endfor %}
+    {% endif %}
+  </tbody>
+</table>
+</div>
+
+
+
+<!-- Modal Body -->
+<!-- if you want to close by clicking outside the modal, delete the last endpoint:data-bs-backdrop and data-bs-keyboard -->
+<div class="modal fade" id="cohortes" tabindex="-1" data-bs-backdrop="static" data-bs-keyboard="false" role="dialog"
+  aria-labelledby="modalTitleId" aria-hidden="true">
+  <div class="modal-dialog modal-dialog-scrollable modal-dialog-centered modal-md" role="document">
+    <div class="modal-content">
+      <div class="modal-header">
+        <h5 class="modal-title" id="modalTitleId">Cohortes</h5>
+        <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+      </div>
+      <form action="/selCoh" method="GET">
+        <div class="modal-body">
+          <div class="form-group">
+            <label for="exampleSelect1" class="form-label mt-4">Periodo</label>
+            <select class="form-select" id="exampleSelect1" name="cid">
+              {% for c in cohortes %}
+              <option value="{{c.cohorte_id}}">{{c.cohorte_inicio}} - {{c.cohorte_fin}}</option>
+              {% endfor %}
+            </select>
+          </div>
+        </div>
+        <div class="modal-footer">
+          <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cancelar</button>
+          <button type="submit" class="btn btn-success">Aceptar</button>
+        </div>
+      </form>
+    </div>
+  </div>
+</div>
+
+
+<!-- Optional: Place to the bottom of scripts -->
+<script>
+  const myModal = new bootstrap.Modal(document.getElementById('cohortes'), options)
+
+</script>
+</body>
+{%endblock%}

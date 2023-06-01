@@ -84,6 +84,8 @@ def get_Ep(cohorte, semestre, session):
 def eficiencias(cohorte, session): #Listo
     EIIC = get_EIIC(cohorte, session)
     ECE = get_ECE(cohorte, session)
+    if EIIC == 0:
+        return 0
     ET = (ECE * 100) / EIIC #Eficiencia de egreso
     #EE = ((ECE + ECEn) * 100) / EIIC #Eficiencia terminal (No se usa)
     #RE = EE - ET (No se usa)
@@ -113,12 +115,18 @@ def tasa_promocion_anual(cohorte, anho, session): #Listo
 def tasa_desercion_semestral(cohorte,semestre,session): #Listo
     EACS = get_EACS(cohorte,semestre,session) #Número de estudiantes que se inscriben en el inicio del semestre
     EIIS = get_Ei(cohorte,semestre,session) #EIIS es lo mismo que Ei
+    if EIIS == 0:
+        return 0
     TDSC = (EACS * 100) / EIIS #Tasa de deserción semestral
+    print(EACS)
+    print(EIIS)
     return TDSC
 
 def tasa_desercion_generacional(cohorte,session): #Listo
     EIIC = get_EIIC(cohorte,session) #Número de estudiantes que se inscriben al primer curso de la carrera
     ECE = get_ECE(cohorte,session) #Número de estudiantes de la cohorte que egresan en el tiempo estipulado en el Plan de Estudio
+    if EIIC == 0:
+        return 0
     TDSC = ((EIIC - ECE) * 100) / EIIC #Tasa de deserción generacional
     return TDSC
 
@@ -137,6 +145,8 @@ def tasa_retencion(cohorte,semestre,session):
     # EIS: Número de estudiantes inscriptos en el semestre, independientemente de que repitan asignaturas o semestres.
     # EIIC: Número de estudiantes que se inscriben al primer curso de la carrera 
     # TR: Tasa de retención 
+    if EIIC == 0:
+        return 0
     TR = (EIS * 100) / EIIC 
     return TR
 

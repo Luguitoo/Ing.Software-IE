@@ -47,6 +47,29 @@ dbtest = sqlite3.connect('NombreDeLaDB.db')
 alumnos=[] #para la cargar de alumnos (ver /loadSt)
 data = []  #para la carga del historial de materias (ver /histAl)
 
+
+def calcular_semestre(anio_ingreso, semestres_totales):
+    fecha_actual = datetime.now()
+    año_actual = fecha_actual.year
+    mes_actual = fecha_actual.month
+    semestres_transcurridos = (año_actual - anio_ingreso) * 2  # Suponiendo 2 semestres por año
+
+    # Ajustar el semestre si el mes actual está en el segundo semestre
+    if mes_actual > 6:
+        semestres_transcurridos += 1
+    if semestres_transcurridos > semestres_totales:
+        return semestres_totales
+    else:
+        return semestres_transcurridos
+
+import re
+def extraer_numero(string):
+    numero = re.match(r'^\d+', string)
+    if numero:
+        return int(numero.group())
+    else:
+        return 0
+
 #leer el/los excel de las notas, guarda en la db y devuelve un js con los datos leidos
 #si se carga varios excel solo devuelve el json del ultimo
 def leer_excel_notas(archivos):
@@ -54,6 +77,7 @@ def leer_excel_notas(archivos):
     try:
         for archivo in archivos:
             df = pd.read_excel(archivo)
+            filename = archivo.filename
             # Guardar el archivo XLSX
             archivo_xlsx = f"./static/temp/{archivo.filename}.xlsx"
             df.to_excel(archivo_xlsx, index=False)
@@ -61,7 +85,7 @@ def leer_excel_notas(archivos):
             ws = wb["Sheet1"]
             nomb = ws['C2'].value
             matr = ws['C3'].value
-            matr = matr.split("/")[-1].strip() # esto devuelve la segunda matrícula
+            matr = matr.split("/")[0].strip() # esto devuelve la segunda matrícula
             print(f"Alumno: {nomb}, matricula: {matr}")
             #elimina de ls bd todos las calificaciones anteriores
             #capaz update sea mejor
@@ -86,6 +110,7 @@ def leer_excel_notas(archivos):
                     opo = ws['E{a}'.format(a=str(inicio + 1))].value
                     nota = ws['F{a}'.format(a=str(inicio + 1))].value
                     nota = nota.split(':')[0].strip()
+                    nota = extraer_numero(str(nota))
                     act = ws['G{a}'.format(a=str(inicio + 1))].value
                     fec = ws['H{a}'.format(a=str(inicio + 1))].value
                     data.append(
@@ -108,11 +133,48 @@ def leer_excel_notas(archivos):
                     session.add(newhistorial)
                     session.flush()
                 inicio += 1
-            # Convertir a JSON
+            #verifica su regularidad
+            if alumno.estado_id != 3:
+                cant_semestres = session.query(models.Semestre).count()
+                cohorte = session.query(models.Cohortes).filter(models.Cohortes.cohorte_id == alumno.cohorte_id).first()
+                sem_cursados = calcular_semestre(cohorte.cohorte_inicio, cant_semestres)
+                if sem_cursados >= cant_semestres:
+                    aprovados = session.query(models.Historial).filter(models.Historial.nota > 1, models.Historial.matricula == matr).count()
+                    cant_materias = session.query(models.Materias).count()
+                    if aprovados == cant_materias:
+                        alumno.estado_id = 5 #titulado
+                    else:
+                        alumno.estado_id = 2 # irregular
+                    session.flush()
+                else:
+                    anios = int(sem_cursados / 2) + cohorte.cohorte_inicio  #para saber cuantos años ya pasó de su ingreso
+                    if sem_cursados % 2 == 0: #pares si son de segundo semetre del año
+                        filter = datetime.strptime("30-06-"+str(anios), "%d-%m-%Y") # tiene tiempo hasta el 30 de junio de rendir la extraodinaria si es necesario
+                        print(filter)
+                        aprovados = session.query(models.Historial).join(models.Materias).filter(models.Historial.matricula == matr, models.Historial.fecha_examen < filter, models.Historial.nota > 1, models.Materias.semestre_id <= sem_cursados).count() #cant de materias rendidas y aprovadas antes de la fecha limite
+                        cant_materias = session.query(models.Materias).filter(models.Materias.semestre_id <= sem_cursados).count()
+                        print(aprovados)
+                        print(cant_materias)
+                        if aprovados >= cant_materias:
+                            alumno.estado_id = 1
+                        else:
+                            alumno.estado_id = 2
+                    else:
+                        filter = datetime.strptime("30-10-"+str(anios), "%d-%m-%Y") # tiene tiempo hasta el 30 de octubre de rendir la extraodinaria si es necesario
+                        aprovados = session.query(models.Historial).join(models.Materias).filter(models.Historial.matricula == matr, models.Historial.fecha_examen < filter, models.Historial.nota>1, models.Materias.semestre_id <= sem_cursados).count()
+                        cant_materias = session.query(models.Materias).filter(models.Materias.semestre_id <= sem_cursados).count()
+                        if aprovados >= cant_materias:
+                            alumno.estado_id = 1
+                        else:
+                            alumno.estado_id = 2
+                        session.flush()
+            os.remove('./static/temp/{a}.xlsx'.format(a = archivo.filename))
+            
         
-    except:
+    except Exception as e:
+        print(e, 'EE')
         try:
-            os.remove('./static/temp/{a}.xlsx'.format(a = archivo.filename)) #elimina el excel del sistema
+            os.remove('./static/temp/{a}.xlsx'.format(a = filename)) #elimina el excel del sistema
             session.close()
             return None
         except:
@@ -123,20 +185,37 @@ def leer_excel_notas(archivos):
     return data
 
 ##funcion agregar alumno, pq puede dar error
-def agregar_alumno(matricula, nombre, id_cohor):
+def agregar_alumno(matricula, nombre, id_cohor, convalidado, session):
     if matricula:
-        session = SessionLocal()
+        #session = SessionLocal()
         # Realizar alguna advertencia si es que ya existe el alumno
+        matricula = matricula.split("/")[0].strip()
         alumno = session.query(models.Alumnos).filter(models.Alumnos.matricula == matricula).first()
-        #la advertencia
+        if convalidado == 1:
+            print(1)
+            estado = 3 #estado convalidado
+        elif alumno:
+            print(2)
+            estado = alumno.estado_id
+        else:
+            print(3)
+            estado = 1 #alumno regular
         if alumno:
+            print(4)
             alumno.alumno_nombre = nombre
             alumno.cohorte_id = id_cohor
+            alumno.estado_id = estado
             session.commit()
         else:
-            new_alumno = models.Alumnos(matricula=matricula, alumno_nombre=nombre, cohorte_id=id_cohor)
+            print(5)
+            print(matricula)
+            print(nombre)
+            print(id_cohor)
+            print(estado)
+            new_alumno = models.Alumnos(matricula=matricula, alumno_nombre=nombre, cohorte_id=id_cohor, estado_id = estado)
             session.add(new_alumno)
             session.commit()
+        #session.close
         return True
 
 #verifica si existen materias cargadas en el sistema antes de acceder a caulquier url
@@ -144,7 +223,8 @@ def agregar_alumno(matricula, nombre, id_cohor):
 def verif_materias():
     session = SessionLocal()
     current_endpoint = request.endpoint
-    print(current_endpoint)
+    #models.insert_estados(session) #Crea los estados en la base de datos
+    #models.insert_test_data(session)
     if current_endpoint != 'cargadematerias' and current_endpoint != 'read_materias' and current_endpoint != 'static':
         materias = session.query(models.Materias).all()
         if not materias:
@@ -214,13 +294,13 @@ def notas():
 @app.route('/download_template', methods = ['GET', 'POST'])
 def download_template():
     if request.method == "POST":
-        return send_file('./static/temp/IE-CyT.xlsx', as_attachment=True)
+        return send_file('./static/resources/IE-CyT.xlsx', as_attachment=True)
 
 @app.route('/download_template_mat', methods = ['GET', 'POST'])
 def download_template_mat():
-        return send_file('./static/temp/materias.xlsx', as_attachment=True) 
+        return send_file('./static/resources/materias.xlsx', as_attachment=True) 
     
-##Leer excel de alumnos y carga en el front, terminado Lugo
+##Leer excel de listado de alumnos y carga en el front, terminado Lugo
 @app.route('/read_excel', methods=['POST']) 
 def read_excel():
     global cant_a
@@ -254,12 +334,13 @@ def read_excel():
         session.add(newcohorte)
         session.flush()
         id_cohor = session.query(models.Cohortes.cohorte_id).filter(models.Cohortes.cohorte_inicio == inic).first()
-    else:
+    """else:
         #si ya existe la cohorte elimina todos los alumnos con esa cohorte para luego poder actualizar su listado
         coh = session.query(models.Alumnos).filter(models.Alumnos.cohorte_id == id_cohor[0]).all()
         for i in coh:
             session.delete(i)
-            session.commit()
+            session.commit()"""
+    matriculas = []
     print('N, Matr, Name')
     while b:
         if not ws['A{a}'.format(a=str(inicio + 1))].value:
@@ -268,22 +349,43 @@ def read_excel():
             print(ws['A{a}'.format(a = str(inicio + 1))].value, ws['B{a}'.format(a = str(inicio + 1))].value, ws['D{a}'.format(a = str(inicio + 1))].value)
             num = ws['A{a}'.format(a=str(inicio + 1))].value
             matricula = ws['B{a}'.format(a=str(inicio + 1))].value
+            matricula = matricula.split("/")[0].strip()
             nombre = ws['D{a}'.format(a=str(inicio + 1))].value
+            convalidado = ws['H{a}'.format(a=str(inicio + 1))].value
             alumnos.append(nombre)
             data.append({
                 'num': num,
                 'matricula': matricula,
                 'nombre': nombre,
+                'convalidado': convalidado
             })
+            print(convalidado)
+            matriculas.append(matricula)
             inicio += 1
             #matric = session.query(models.Alumnos.matricula).filter(models.Alumnos.matricula == matricula).scalar()
             # Llamar a la función agregar_alumno dentro de un bucle de eventos asyncio
-            alu = agregar_alumno(matricula, nombre, id_cohor[0])
+            alu = agregar_alumno(matricula, nombre, id_cohor[0], convalidado, session=session)
             if alu == None:
                 return "El Alumno con matricula "+ str(matricula) + " ya está registrando en otra cohorte", 400
+    #elimina los alumnos que no vinieron en el excel junto con su historial
+    alumnos = session.query(models.Alumnos).filter(models.Alumnos.cohorte_id == id_cohor[0]).all()
+    for alumno in alumnos:
+        if not alumno.matricula in matriculas:
+            historial = session.query(models.Historial).filter(models.Historial.matricula == alumno.matricula).all()
+            if historial:
+                for i in historial:
+                    session.delete(i)
+                    session.flush()
+            session.delete(alumno)
+            session.flush()
     cant_a = inicio - 1
-    cant_matriculados = models.Cantidad_inscript(cohorte_id = id_cohor[0], semestre_id = 1, cantidad = cant_a)
-    session.add(cant_matriculados)
+    cant_matriculados = session.query(models.Cantidad_inscript).filter(models.Cantidad_inscript.cohorte_id == id_cohor[0]).first()
+    if cant_matriculados:
+        cant_matriculados.cantidad = cant_a
+        session.flush()
+    else:
+        cant_matriculados = models.Cantidad_inscript(cohorte_id = id_cohor[0], semestre_id = 1, cantidad = cant_a)
+        session.add(cant_matriculados)
     ##print(cant_a)
     session.commit()
     session.close()
@@ -306,11 +408,9 @@ def read_all_notas():
     if result == None:
         print('Ocurrio un error al procesar el documentos')
         return 'Ocurrio un error al procesar el documentos', 500
-    print(result)
     id_cohorte = session.query(models.Alumnos.cohorte_id).filter(models.Alumnos.matricula==result[0]['matr']).first()
     session.commit()
     session.close()
-    print(id_cohorte)
     return redirect('/selCoh?cid='+str(id_cohorte[0]))
 
 @app.route('/read_notas', methods=['POST'])
@@ -336,13 +436,6 @@ def read_notas():
     return json_data
 
 #Ver historial de asignaturas del alumno
-import re
-def extraer_numero(string):
-    numero = re.match(r'^\d+', string)
-    if numero:
-        return int(numero.group())
-    else:
-        return 0
 @app.route('/historial/<mat>')
 def historial(mat:str):
     session = SessionLocal()
@@ -366,9 +459,9 @@ def historial(mat:str):
                 if nota > may:
                     may = nota
             if may > 1:
-                estado['estado'] = 'Aprovado'
+                estado['estado'] = 'Aprobado'
             else:
-                estado['estado'] = 'No aprovado'
+                estado['estado'] = 'No aprobado'
         historial.append(estado)
     alumno = session.query(models.Alumnos).filter(models.Alumnos.matricula == mat).first()
     session.close()
@@ -463,7 +556,7 @@ def salidas():
         cohorte_id = request.form['cohorte_id']
         semestre_inicio = int(request.form['semestre_inicio'])
         semestre_fin = int(request.form['semestre_fin'])
-        print(cohorte_id,semestre_inicio,semestre_fin)
+        #print(cohorte_id,semestre_inicio,semestre_fin)
         respuesta = []
         anual = []
         semestral = []
@@ -492,7 +585,7 @@ def salidas():
 
         json_data = json.loads(json.dumps(respuesta))
         #json_data = jsonify(respuesta)
-        print(json_data)
+        #print(json_data)
 
         # Mostrar la cadena json por pantalla
         return render_template('salidas.html', cohortes = cohortes, semestres = semestres, 
@@ -503,25 +596,26 @@ def salidas():
                                json_data = "", sel_cohorte = "", 
                                semestre_inicio = "", semestre_fin = "")
 
-
 @app.route('/cant_inscriptos/<int:id>')
 def cant_inscriptos(id):
     session = SessionLocal()
     datos = []
     semestre = session.query(models.Semestre).count()
-    print(semestre)
     id_cohorte = session.query(models.Cantidad_inscript.cohorte_id).filter(models.Cantidad_inscript.cohorte_id == id, models.Cantidad_inscript.semestre_id == 1).scalar()
-    print(id_cohorte)
     #Verifica si realmente existe esa cohorte en la bd
     cohorte = session.query(models.Cohortes.cohorte_id).filter(models.Cohortes.cohorte_id == id).scalar()
-    print(cohorte)
-    if not id_cohorte and cohorte:
-        for x in range(1, semestre + 1):
-            nuevo = models.Cantidad_inscript(cohorte_id = id, semestre_id = x, cantidad = 0 )
-            session.add(nuevo)
-            session.flush()
-    #si existe el primer registro, creo que se debería de crear el resto en 0
-    #O al cargar los incriptos del primer semestre ya se puede inicializar el resto en 0 -> no se debería de hacer eso
+    if cohorte:
+        if id_cohorte:
+            #si ya existe el primero, inicializa el resto en cero
+            for x in range(2, semestre + 1):
+                id_semestre = session.query(models.Cantidad_inscript).filter(models.Cantidad_inscript.cohorte_id == id, models.Cantidad_inscript.semestre_id == x).scalar()
+                #solo se inicializa si aún no existen
+                if not id_semestre:
+                    nuevo = models.Cantidad_inscript(cohorte_id = id, semestre_id = x, cantidad = 0 )          
+                    session.add(nuevo)
+                    session.commit()
+        else:
+            print("aún no se creo el primer registro")
     datos = session.query(models.Cantidad_inscript.semestre_id, models.Cantidad_inscript.cantidad).filter(models.Cantidad_inscript.cohorte_id == id).all()
     print(datos) 
     session.close()
@@ -531,16 +625,22 @@ def actualizar_cantidad():
     session = SessionLocal()
     semestre = session.query(models.Semestre).count()
     id = request.form["id_cohorte"]
-    for x in range(1, semestre + 1):
-        registro = session.query(models.Cantidad_inscript).get((id, x))    
-        try:
-            cant = request.form["cant_"+str(x)]
-            registro.cantidad = cant
-            session.commit()
-        except:
-            return("Error")
+    #Verifica si realmente existe esa cohorte en la bd
+    cohorte = session.query(models.Cohortes.cohorte_id).filter(models.Cohortes.cohorte_id == id).scalar()
+    if cohorte:
+        for x in range(1, semestre + 1):
+            try:
+                cant = request.form["cant_"+str(x)]
+                datos = session.query(Cantidad_inscript).filter_by(cohorte_id=id, semestre_id=x).scalar()  
+                datos.cantidad = cant
+                session.commit()
+            #para controlar el error cuando no hay campos para completar
+            except:
+                return("Error")
+    else:
+        print("no existe esta cohorte")
     session.close()
-    return("GUARDADO")
+    return redirect("/")
 
 if __name__=='__main__':
     app.run(debug = True, port= 8000)

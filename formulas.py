@@ -1,6 +1,5 @@
-﻿#from application import session
-from database import models
-from sqlalchemy import text, outerjoin, and_
+﻿from database import models
+from sqlalchemy import text, and_
 
 def get_EIIC(cohorte, session):
     # EIIC: Número de estudiantes que se inscriben al primer curso de la carrera
@@ -43,6 +42,8 @@ def get_ECE(cohorte,session):
         HAVING COUNT(CASE WHEN h.nota_max >= 2 THEN h.materia_codigo ELSE NULL END) = (SELECT COUNT(*) FROM materias)
     ) AS t
     """)).scalar()
+    if ECE == None:
+        ECE = 0
     return ECE
 
 def get_Ei(cohorte, semestre, session):
@@ -119,7 +120,7 @@ def tasa_desercion_generacional(cohorte,session): #Listo
     EIIC = get_EIIC(cohorte,session) #Número de estudiantes que se inscriben al primer curso de la carrera
     ECE = get_ECE(cohorte,session) #Número de estudiantes de la cohorte que egresan en el tiempo estipulado en el Plan de Estudio
     TDSC = ((EIIC - ECE) * 100) / EIIC #Tasa de deserción generacional
-    return EIIC, ECE, TDSC
+    return TDSC
 
 
 #Este no podemos usar porque EE usa el alumnos de otra cohorte
@@ -137,7 +138,7 @@ def tasa_retencion(cohorte,semestre,session):
     # EIIC: Número de estudiantes que se inscriben al primer curso de la carrera 
     # TR: Tasa de retención 
     TR = (EIS * 100) / EIIC 
-    return semestre, EIS, EIIC, TR
+    return TR
 
 def tiempo_medio_egreso(PrE, N):
     # PrE: Número promedio de semestres empleados por el egresado n de la cohorte para cursar la carrera 

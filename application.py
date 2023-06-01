@@ -18,6 +18,7 @@ from openpyxl.styles import PatternFill
 import pandas as pd
 #Json
 from flask import jsonify
+import json
 #database con sqlalchemy
 from database import models
 from sqlalchemy import text, update
@@ -448,6 +449,57 @@ def read_materias():
         json_data = jsonify(list)
         return json_data
 
+@app.route("/salidas", methods=['GET', 'POST'])
+def salidas():
+    session = SessionLocal()
+    cohortes = session.query(models.Cohortes.cohorte_id,
+                             models.Cohortes.cohorte_inicio,
+                             models.Cohortes.cohorte_fin).all()
+    semestres = session.query(models.Semestre.semestre_id).all()
+    session.close()
+    if request.method == "POST":
+        cohorte_id = request.form['cohorte_id']
+        semestre_inicio = int(request.form['semestre_inicio'])
+        semestre_fin = int(request.form['semestre_fin'])
+        print(cohorte_id,semestre_inicio,semestre_fin)
+        respuesta = []
+        anual = []
+        semestral = []
+        for i in range(semestre_inicio//2 + 1, semestre_fin//2 + 1):
+          anual.append({
+              "anho" : i,
+              i: tasa_promocion_anual(cohorte_id,i,session),
+          })
+
+        for i in range(semestre_inicio, semestre_fin + 1):
+          semestral.append({
+              "semestre" : i,
+              i: {
+                  "desercion" : tasa_desercion_semestral(cohorte_id,i,session),
+                  "retencion" : tasa_retencion(cohorte_id,i,session),
+              },
+          })
+        respuesta.append({
+            "eficiencia" : eficiencias(cohorte_id,session),
+            "desercion_generacional" : tasa_desercion_generacional(cohorte_id, session),
+            "promocion_semestral" : tasa_promocion_semestral(cohorte_id, semestre_inicio, semestre_fin, session),
+            "anuales" : anual,
+            "semestrales" : semestral,
+        })
+
+
+        json_data = json.loads(json.dumps(respuesta))
+        #json_data = jsonify(respuesta)
+        print(json_data)
+
+        # Mostrar la cadena json por pantalla
+        return render_template('salidas.html', cohortes = cohortes, semestres = semestres, 
+                               json_data = respuesta[0], cohorte_id = cohorte_id, 
+                               semestre_inicio = semestre_inicio, semestre_fin = semestre_fin)
+    else:
+        return render_template('salidas.html', cohortes = cohortes, semestres = semestres, 
+                               json_data = "", sel_cohorte = "", 
+                               semestre_inicio = "", semestre_fin = "")
 
 
 @app.route('/cant_inscriptos/<int:id>')

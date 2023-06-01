@@ -284,21 +284,36 @@ def salidas():
         semestre_inicio = int(request.form['semestre_inicio'])
         semestre_fin = int(request.form['semestre_fin'])
         print(cohorte_id,semestre_inicio,semestre_fin)
-        respuestas = {}
-        respuestas["eficiencias"] = eficiencias(cohorte_id, session)
-        respuestas["tasa_promocion_semestral"] = tasa_promocion_semestral(cohorte_id, semestre_inicio, semestre_fin, session)
+        respuesta = []
+        anual = []
+        semestral = []
         for i in range(semestre_inicio//2 + 1, semestre_fin//2 + 1):
-          respuestas[f"tasa_promocion_anual_{i}"] = tasa_promocion_anual(cohorte_id, i, session)
+          anual.append({
+              f"{i}": tasa_promocion_anual(cohorte_id,i,session),
+          })
 
         for i in range(semestre_inicio, semestre_fin + 1):
-          respuestas[f"tasa_desercion_semestral_{i}"] = tasa_desercion_semestral(cohorte_id, i, session)
-          respuestas[f"tasa_retencion_{i}"] = tasa_retencion(cohorte_id, i, session)
+          semestral.append({
+              f"{i}": {
+                  "desercion" : tasa_desercion_semestral(cohorte_id,i,session),
+                  "retencion" : tasa_retencion(cohorte_id,i,session),
+              },
+          })
+        respuesta.append({
+            "eficiencia" : eficiencias(cohorte_id,session),
+            "desercion_generacional" : tasa_desercion_generacional(cohorte_id, session),
+            "promocion_semestral" : tasa_promocion_semestral(cohorte_id, semestre_inicio, semestre_fin, session),
+            "anuales" : anual,
+            "semestral" : semestral,
+        })
 
-        respuestas["tasa_desercion_generacional"] = tasa_desercion_generacional(cohorte_id, session)
-        json_data = json.dumps(respuestas)
+
+        json_data = json.loads(json.dumps(respuesta))
+        #json_data = jsonify(respuesta)
+        print(json_data)
 
         # Mostrar la cadena json por pantalla
-        return render_template('salidas.html', cohortes = cohortes, semestres = semestres, json_data = json_data)
+        return render_template('salidas.html', cohortes = cohortes, semestres = semestres, json_data = respuesta[0])
     else:
         return render_template('salidas.html', cohortes = cohortes, semestres = semestres, json_data = "")
 

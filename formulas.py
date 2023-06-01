@@ -120,7 +120,7 @@ def tasa_desercion_generacional(cohorte,session): #Listo
     EIIC = get_EIIC(cohorte,session) #Número de estudiantes que se inscriben al primer curso de la carrera
     ECE = get_ECE(cohorte,session) #Número de estudiantes de la cohorte que egresan en el tiempo estipulado en el Plan de Estudio
     TDSC = ((EIIC - ECE) * 100) / EIIC #Tasa de deserción generacional
-    return EIIC, ECE, TDSC
+    return TDSC
 
 
 #Este no podemos usar porque EE usa el alumnos de otra cohorte
@@ -138,7 +138,7 @@ def tasa_retencion(cohorte,semestre,session):
     # EIIC: Número de estudiantes que se inscriben al primer curso de la carrera 
     # TR: Tasa de retención 
     TR = (EIS * 100) / EIIC 
-    return semestre, EIS, EIIC, TR
+    return TR
 
 def tiempo_medio_egreso(PrE, N):
     # PrE: Número promedio de semestres empleados por el egresado n de la cohorte para cursar la carrera 

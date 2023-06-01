@@ -28,45 +28,44 @@
     <!---Main content-->
     <div class="main-container">
         <div class="container">
-            <form action="#">
+            <form action="/salidas" method="post">
                 <label for="cohorte">Cohorte</label>
-                <select name="cohorte" id="cohorte">
+                <select name="cohorte_id" id="cohorte">
                     {%for cohorte in cohortes%}
                     <option value="{{cohorte[0]}}">{{cohorte[1]}} - {{cohorte[2]}}</option>
                     {%endfor%}
                 </select>
                 <label for="inicio">Semestre de inicio</label>
-                <select name="inicio" id="inicio" onchange="deshabilitarOpciones()">
+                <select name="semestre_inicio" id="inicio" onchange="deshabilitarOpciones()">
                     {%for semestre in semestres%}
                     <option value="{{semestre[0]}}">{{semestre[0]}}</option>
                     {%endfor%}
                 </select>
                 <label for="fin">Semestre de fin</label>
-                <select name="fin" id="fin">
+                <select name="semestre_fin" id="fin">
                     {%for semestre in semestres%}
                     <option value="{{semestre[0]}}">{{semestre[0]}}</option>
                     {%endfor%}
                 </select>
                 <button class="btn btn-primary" id="submitButton">Enviar</button>
             </form>
-            {% if json_data %}
             <div>
                 <h1>Reporte de datos</h1>
                 <ul>
-                    <li>Eficiencias: {{ json_data["eficiencias"] }}</li>
-                    <li>Tasa de promoción semestral: {{ json_data["tasa_promocion_semestral"] }}</li>
-                    {% for i in range(semestre_inicio//2 + 1, semestre_fin//2 + 1) %}
-                    <li>Tasa de promoción anual {{ i }}: {{ json_data[f"tasa_promocion_anual_{i}"] }}</li>
+                    <li>Eficiencias: {{ json_data["eficiencia"] }}</li>
+                    <li>Tasa de promoción semestral: {{ json_data["promocion_semestral"]}}</li>
+                    <li>Tasa de deserción generacional: {{ json_data["desercion_generacional"] }}</li>
+                    {% for row in json_data["anuales"] %}
+                    <li>Tasa de promoción anual {{ row }}: {{ row }}</li>
                     {% endfor %}
-                    {% for i in range(semestre_inicio, semestre_fin + 1) %}
-                    <li>Tasa de deserción semestral {{ i }}: {{ json_data["tasa_desercion_semestral_{i}"] }}</li>
-                    <li>Tasa de retención {{ i }}: {{ json_data[f"tasa_retencion_{i}"] }}</li>
+                    {% for row in json_data["semestral"] %}
+                    <li>Tasa de deserción semestral {{ row }}: {{ row["desercion"] }}</li>
+                    <li>Tasa de retención semestral {{ row }}: {{ row["retencion"] }}</li>
                     {% endfor %}
-                    <li>Tasa de deserción generacional: {{ json_data["tasa_desercion_generacional"] }}</li>
                 </ul>
             </div>
-            {%endif%}
         </div>
+        <p>{{json_data}}</p>
     </div>
     <script>
 

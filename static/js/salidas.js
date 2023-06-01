@@ -1,5 +1,5 @@
 
-// Función que realiza la solicitud AJAX al backend
+/* Funciï¿½n que realiza la solicitud AJAX al backend
 const cohorte = document.getElementById("cohorte");
 const inicio = document.getElementById("inicio");
 const fin = document.getElementById("fin");
@@ -11,7 +11,7 @@ submitButton.addEventListener('click', () => {
     const finValue = fin.value;
 
     if (!cohorteValue || !inicioValue || !finValue) {
-        // Mostrar alerta si falta algún valor
+        // Mostrar alerta si falta algï¿½n valor
         alert('Por favor, complete todos los campos');
         return;
     }
@@ -26,14 +26,15 @@ submitButton.addEventListener('click', () => {
     xhr.onreadystatechange = function () {
         if (xhr.readyState === 4 && xhr.status === 200) {
             //status ok
+            console.log(xhr)
             const response = JSON.parse(xhr.responseText);
             console.log(response);
         }
     };
     xhr.send(formData);
 });
-
-// Función que deshabilita los semestres menores que el semestre de inicio
+*/
+// Funciï¿½n que deshabilita los semestres menores que el semestre de inicio
 function deshabilitarOpciones() {
     var inicio = document.getElementById("inicio");
     var fin = document.getElementById("fin");

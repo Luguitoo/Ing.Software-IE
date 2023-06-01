@@ -138,6 +138,8 @@ def agregar_alumno(matricula, nombre, id_cohor):
             session.add(new_alumno)
             session.commit()
         return True
+
+#verifica si existen materias cargadas en el sistema antes de acceder a caulquier url
 @app.before_request
 def verif_materias():
     session = SessionLocal()

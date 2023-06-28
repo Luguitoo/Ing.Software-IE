@@ -41,7 +41,7 @@ alumnos = []
 application = app = Flask(__name__)
 
 app.config.from_object(DevConfig)
-dbtest = sqlite3.connect('NombreDeLaDB.db')
+##dbtest = sqlite3.connect('NombreDeLaDB.db')
 
 #Variables que uso de forma temporal ya que despues se va a guardar en la db
 alumnos=[] #para la cargar de alumnos (ver /loadSt)
@@ -79,6 +79,10 @@ def leer_excel_notas(archivos):
             df = pd.read_excel(archivo)
             filename = archivo.filename
             # Guardar el archivo XLSX
+            try:
+                os.mkdir('./static/temp')
+            except FileExistsError:
+                pass
             archivo_xlsx = f"./static/temp/{archivo.filename}.xlsx"
             df.to_excel(archivo_xlsx, index=False)
             wb = load_workbook('./static/temp/{a}.xlsx'.format(a = archivo.filename))
@@ -138,7 +142,13 @@ def leer_excel_notas(archivos):
                 cant_semestres = session.query(models.Semestre).count()
                 cohorte = session.query(models.Cohortes).filter(models.Cohortes.cohorte_id == alumno.cohorte_id).first()
                 sem_cursados = calcular_semestre(cohorte.cohorte_inicio, cant_semestres)
+                anios = int(sem_cursados / 2) + cohorte.cohorte_inicio  #para saber cuantos años ya pasó de su ingreso
+                if sem_cursados % 2 == 0: #pares si son de segundo semetre del año
+                    filter = datetime.strptime("30-06-"+str(anios), "%d-%m-%Y") # tiene tiempo hasta el 30 de junio de rendir la extraodinaria si es necesario
+                else:
+                    filter = datetime.strptime("30-10-"+str(anios), "%d-%m-%Y") # tiene tiempo hasta el 30 de octubre de rendir la extraodinaria si es necesario
                 if sem_cursados >= cant_semestres:
+                    estado_sem(sem_cursados, matr, filter, session)
                     aprovados = session.query(models.Historial).filter(models.Historial.nota > 1, models.Historial.matricula == matr).count()
                     cant_materias = session.query(models.Materias).count()
                     if aprovados == cant_materias:
@@ -147,27 +157,8 @@ def leer_excel_notas(archivos):
                         alumno.estado_id = 2 # irregular
                     session.flush()
                 else:
-                    anios = int(sem_cursados / 2) + cohorte.cohorte_inicio  #para saber cuantos años ya pasó de su ingreso
-                    if sem_cursados % 2 == 0: #pares si son de segundo semetre del año
-                        filter = datetime.strptime("30-06-"+str(anios), "%d-%m-%Y") # tiene tiempo hasta el 30 de junio de rendir la extraodinaria si es necesario
-                        print(filter)
-                        aprovados = session.query(models.Historial).join(models.Materias).filter(models.Historial.matricula == matr, models.Historial.fecha_examen < filter, models.Historial.nota > 1, models.Materias.semestre_id <= sem_cursados).count() #cant de materias rendidas y aprovadas antes de la fecha limite
-                        cant_materias = session.query(models.Materias).filter(models.Materias.semestre_id <= sem_cursados).count()
-                        print(aprovados)
-                        print(cant_materias)
-                        if aprovados >= cant_materias:
-                            alumno.estado_id = 1
-                        else:
-                            alumno.estado_id = 2
-                    else:
-                        filter = datetime.strptime("30-10-"+str(anios), "%d-%m-%Y") # tiene tiempo hasta el 30 de octubre de rendir la extraodinaria si es necesario
-                        aprovados = session.query(models.Historial).join(models.Materias).filter(models.Historial.matricula == matr, models.Historial.fecha_examen < filter, models.Historial.nota>1, models.Materias.semestre_id <= sem_cursados).count()
-                        cant_materias = session.query(models.Materias).filter(models.Materias.semestre_id <= sem_cursados).count()
-                        if aprovados >= cant_materias:
-                            alumno.estado_id = 1
-                        else:
-                            alumno.estado_id = 2
-                        session.flush()
+                    alumno.estado_id = estado_sem(sem_cursados, matr, filter, session)
+                    session.flush()
             os.remove('./static/temp/{a}.xlsx'.format(a = archivo.filename))
             
         
@@ -183,6 +174,29 @@ def leer_excel_notas(archivos):
     session.commit()
     session.close()
     return data
+
+##funcion para recorrer semestres y asignar el estado del alumno en cada uno y devolver el último estado
+def estado_sem(sem_cursados, matr, filter, session):
+    estados_semestrales = session.query(models.Est_Sem_Alumnos).filter(models.Est_Sem_Alumnos.matricula == matr).all()
+    mayor_semestre_rendido = session.query(func.max(models.Materias.semestre_id)).join(models.Historial, models.Historial.materia_codigo == models.Materias.materia_codigo).filter(models.Historial.matricula == matr).scalar()
+    if estados_semestrales:
+            for i in estados_semestrales:
+                session.delete(i)
+                session.flush()
+    for i in range(1,sem_cursados+1):
+        aprovados = session.query(models.Historial).join(models.Materias).filter(models.Historial.matricula == matr, models.Historial.fecha_examen < filter, models.Historial.nota > 1, models.Materias.semestre_id <= i).count() #cant de materias rendidas y aprovadas antes de la fecha limite
+        cant_materias = session.query(models.Materias).filter(models.Materias.semestre_id <= i).count()
+        if i <= mayor_semestre_rendido:
+            if aprovados >= cant_materias:
+                estado = 1 ##Regular
+            else:
+                estado = 2 ##Irregular
+        else:
+            estado = 6 ##Abandonado
+        newestadosem = models.Est_Sem_Alumnos(matricula = matr, semestre_id = i, estado_id = estado)
+        session.add(newestadosem)
+        session.flush()
+    return estado
 
 ##funcion agregar alumno, pq puede dar error
 def agregar_alumno(matricula, nombre, id_cohor, convalidado, session):
@@ -223,7 +237,7 @@ def agregar_alumno(matricula, nombre, id_cohor, convalidado, session):
 def verif_materias():
     session = SessionLocal()
     current_endpoint = request.endpoint
-    #models.insert_estados(session) #Crea los estados en la base de datos
+    models.insert_estados(session) #Crea los estados en la base de datos
     #models.insert_test_data(session)
     if current_endpoint != 'cargadematerias' and current_endpoint != 'read_materias' and current_endpoint != 'static':
         materias = session.query(models.Materias).all()
@@ -547,9 +561,7 @@ def read_materias():
 @app.route("/salidas", methods=['GET', 'POST'])
 def salidas():
     session = SessionLocal()
-    cohortes = session.query(models.Cohortes.cohorte_id,
-                             models.Cohortes.cohorte_inicio,
-                             models.Cohortes.cohorte_fin).all()
+    cohortes = session.query(models.Cohortes.cohorte_id,models.Cohortes.cohorte_inicio,models.Cohortes.cohorte_fin).all()
     semestres = session.query(models.Semestre.semestre_id).all()
     session.close()
     if request.method == "POST":

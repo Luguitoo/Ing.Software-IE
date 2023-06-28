@@ -1,4 +1,5 @@
-﻿from database import models
+﻿from sqlalchemy import func
+from database import models
 from sqlalchemy import text, and_
 
 def get_EIIC(cohorte, session):
@@ -8,40 +9,50 @@ def get_EIIC(cohorte, session):
 
 def get_EACS(cohorte,semestre,session):
     # EACS: Número de estudiantes que abandonan la carrera en el transcurso del semestre
-    EACS = session.execute(text(f"""
-    SELECT count(t.matricula) AS total
-    FROM (
-        SELECT alumnos.matricula
-        FROM alumnos
-        WHERE alumnos.matricula NOT IN (
-            SELECT DISTINCT historial.matricula 
-            FROM historial 
-            JOIN alumnos ON historial.matricula = alumnos.matricula 
-            JOIN materias ON historial.materia_codigo = materias.materia_codigo
-            WHERE materias.semestre_id = {semestre} AND alumnos.cohorte_id = {cohorte}
-        )  AND alumnos.cohorte_id = {cohorte}
-    ) AS t
-    """)).scalar()
+    # EACS = session.execute(text(f"""
+    # SELECT count(t.matricula) AS total
+    # FROM (
+    #     SELECT alumnos.matricula
+    #     FROM alumnos
+    #     WHERE alumnos.matricula NOT IN (
+    #         SELECT DISTINCT historial.matricula 
+    #         FROM historial 
+    #         JOIN alumnos ON historial.matricula = alumnos.matricula 
+    #         JOIN materias ON historial.materia_codigo = materias.materia_codigo
+    #         WHERE materias.semestre_id = {semestre} AND alumnos.cohorte_id = {cohorte}
+    #     )  AND alumnos.cohorte_id = {cohorte}
+    # ) AS t
+    # """)).scalar()
+
+    min_semestre = session.query(func.min(models.Est_Sem_Alumnos.semestre_id)).join(models.Alumnos, models.Alumnos.matricula == models.Est_Sem_Alumnos.matricula).filter(models.Alumnos.cohorte_id == cohorte, models.Est_Sem_Alumnos.estado_id == 6).scalar()
+
+    if min_semestre == semestre:
+        EACS = session.query(models.Est_Sem_Alumnos.matricula).filter(models.Est_Sem_Alumnos.estado_id == 6).distinct().count()
+    else:
+        EACS = 0
 
     return EACS
 
 def get_ECE(cohorte,session):
     # ECE: Número de estudiantes de la cohorte que egresan en el tiempo estipulado en el Plan de Estudio
-    ECE = session.execute(text(f"""
-    SELECT SUM(cantidad) AS total
-    FROM (
-        SELECT COUNT(DISTINCT a.matricula) AS cantidad
-        FROM alumnos AS a
-        JOIN (
-            SELECT matricula, materia_codigo, MAX(nota) AS nota_max
-            FROM historial
-            GROUP BY matricula, materia_codigo
-        ) AS h ON a.matricula = h.matricula
-        WHERE a.estado_id = 1 AND a.cohorte_id = {cohorte}
-        GROUP BY a.matricula
-        HAVING COUNT(CASE WHEN h.nota_max >= 2 THEN h.materia_codigo ELSE NULL END) = (SELECT COUNT(*) FROM materias)
-    ) AS t
-    """)).scalar()
+    # ECE = session.execute(text(f"""
+    # SELECT SUM(cantidad) AS total
+    # FROM (
+    #     SELECT COUNT(DISTINCT a.matricula) AS cantidad
+    #     FROM alumnos AS a
+    #     JOIN (
+    #         SELECT matricula, materia_codigo, MAX(nota) AS nota_max
+    #         FROM historial
+    #         GROUP BY matricula, materia_codigo
+    #     ) AS h ON a.matricula = h.matricula
+    #     WHERE a.estado_id = 1 AND a.cohorte_id = {cohorte}
+    #     GROUP BY a.matricula
+    #     HAVING COUNT(CASE WHEN h.nota_max >= 2 THEN h.materia_codigo ELSE NULL END) = (SELECT COUNT(*) FROM materias)
+    # ) AS t
+    # """)).scalar()
+
+    ECE = session.query(models.Alumnos).filter(models.Alumnos.estado_id == 5, models.Alumnos.cohorte_id == cohorte).count()
+
     if ECE == None:
         ECE = 0
     return ECE
@@ -57,25 +68,27 @@ def get_Ei(cohorte, semestre, session):
 
 def get_Ep(cohorte, semestre, session):
     # Ep: Número de estudiantes promovidos de cada semestre (primero a n)
-    Ep = session.execute(text(f"""
-    SELECT COUNT(*) AS total
-    FROM (
-        SELECT COUNT(DISTINCT a.matricula) AS cantidad
-        FROM alumnos AS a
-        JOIN (
-                SELECT matricula, materia_codigo, MAX(nota) AS nota_max
-                FROM historial
-                GROUP BY matricula, materia_codigo
-            ) AS h ON a.matricula = h.matricula
-        WHERE a.cohorte_id = {cohorte} AND h.materia_codigo IN (
-            SELECT materia_codigo FROM materias WHERE semestre_id = {semestre}
-        )
-        GROUP BY a.matricula
-        HAVING COUNT(CASE WHEN h.nota_max >= 2 THEN h.materia_codigo ELSE NULL END) = (
-            SELECT COUNT(*) FROM materias WHERE semestre_id = {semestre}
-        )
-    ) AS t""")).scalar()
-    
+    # Ep = session.execute(text(f"""
+    # SELECT COUNT(*) AS total
+    # FROM (
+    #     SELECT COUNT(DISTINCT a.matricula) AS cantidad
+    #     FROM alumnos AS a
+    #     JOIN (
+    #             SELECT matricula, materia_codigo, MAX(nota) AS nota_max
+    #             FROM historial
+    #             GROUP BY matricula, materia_codigo
+    #         ) AS h ON a.matricula = h.matricula
+    #     WHERE a.cohorte_id = {cohorte} AND h.materia_codigo IN (
+    #         SELECT materia_codigo FROM materias WHERE semestre_id = {semestre}
+    #     )
+    #     GROUP BY a.matricula
+    #     HAVING COUNT(CASE WHEN h.nota_max >= 2 THEN h.materia_codigo ELSE NULL END) = (
+    #         SELECT COUNT(*) FROM materias WHERE semestre_id = {semestre}
+    #     )
+    # ) AS t""")).scalar()
+
+    Ep = session.query(models.Est_Sem_Alumnos).join(models.Alumnos, models.Alumnos.matricula == models.Est_Sem_Alumnos.matricula).filter(models.Alumnos.cohorte_id == cohorte, models.Est_Sem_Alumnos.semestre_id == semestre , models.Est_Sem_Alumnos.estado_id == 1).count()
+
     if Ep == None:
         Ep = 0
     return Ep
@@ -86,7 +99,7 @@ def eficiencias(cohorte, session): #Listo
     ECE = get_ECE(cohorte, session)
     if EIIC == 0:
         return 0
-    ET = (ECE * 100) / EIIC #Eficiencia de egreso
+    ET = round((ECE * 100) / EIIC,2) #Eficiencia de egreso
     #EE = ((ECE + ECEn) * 100) / EIIC #Eficiencia terminal (No se usa)
     #RE = EE - ET (No se usa)
     return ET
@@ -99,7 +112,7 @@ def tasa_promocion_semestral(cohorte, inicio, fin, session): #listo
         Ep += get_Ep(cohorte, semestre, session)
 
     if Ei != 0:
-        TP = (Ep * 100) / Ei #Tasa de promoción semestral
+        TP = round((Ep * 100) / Ei,2) #Tasa de promoción semestral
     else:
         TP = 0
     return TP
@@ -109,17 +122,15 @@ def tasa_promocion_anual(cohorte, anho, session): #Listo
     fin = anho*2
     TPr1 = tasa_promocion_semestral(cohorte, inicio, inicio+1, session) # Tasa de promoción del primer semestre
     TPr2 = tasa_promocion_semestral(cohorte, fin, fin+1, session) #Tasa de promoción del segundo semestre
-    TPr = (TPr1 + TPr2) / 2 #Tasa de promoción anual
+    TPr = round((TPr1 + TPr2) / 2, 2) #Tasa de promoción anual
     return TPr
 
 def tasa_desercion_semestral(cohorte,semestre,session): #Listo
-    EACS = get_EACS(cohorte,semestre,session) #Número de estudiantes que se inscriben en el inicio del semestre
+    EACS = get_EACS(cohorte,semestre,session) #Número de estudiantes que abandonan la carrera en el transcurso del semestre
     EIIS = get_Ei(cohorte,semestre,session) #EIIS es lo mismo que Ei
     if EIIS == 0:
         return 0
-    TDSC = (EACS * 100) / EIIS #Tasa de deserción semestral
-    print(EACS)
-    print(EIIS)
+    TDSC = round((EACS * 100) / EIIS,2) #Tasa de deserción semestral
     return TDSC
 
 def tasa_desercion_generacional(cohorte,session): #Listo

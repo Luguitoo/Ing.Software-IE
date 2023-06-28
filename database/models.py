@@ -14,9 +14,15 @@ class Estados(Base):
     estado_id = Column(Integer, primary_key=True, index=True, autoincrement=False)
     estado_descript = Column(String(20), nullable=False)
 
+class Est_Sem_Alumnos(Base):
+    __tablename__ = 'estados_sem_alumnos'
+    matricula = Column(String(20), ForeignKey('alumnos.matricula'), primary_key=True)
+    semestre_id = Column(Integer, ForeignKey('alumnos.matricula'), primary_key=True,)
+    estado_id = Column(Integer, ForeignKey('estados.estado_id'), default = 1) 
+
 class Alumnos(Base):
     __tablename__ = 'alumnos'
-    matricula = Column(String(20),primary_key=True,index=True, nullable=False)
+    matricula = Column(String(20), primary_key=True, index=True, nullable=False)
     alumno_nombre = Column(String(20), nullable=False)
     cohorte_id = Column(Integer, ForeignKey('cohortes.cohorte_id'))
     estado_id = Column(Integer, ForeignKey('estados.estado_id'), default = 1)
